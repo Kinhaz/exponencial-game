@@ -1,0 +1,1831 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>A Torre de Al-Kwarizmi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Cinzel:wght@500;700&family=MedievalSharp&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --font-pixel: 'Press Start 2P', 'Courier New', monospace;
+    --font-display: 'Cinzel', 'Press Start 2P', serif;
+    --font-body: 'MedievalSharp', Georgia, 'Palatino Linotype', serif;
+
+    --bg-deep: #050211;
+    --bg-panel: #140a2e;
+    --bg-panel-2: #1c0f3d;
+    --ice: #7dd3fc;
+    --ice-soft: #bee7fb;
+    --arcane: #a78bfa;
+    --ember: #f87171;
+    --gold: #f5d48a;
+    --gold-dim: #b9924f;
+    --wall-color: #2a1a4d;
+    --floor-color: #0a0620;
+    --text-main: #eee8ff;
+    --text-dim: #9d8fc4;
+
+    /* paleta neon estilo synthwave / Hotline Miami */
+    --neon-pink: #ff2e88;
+    --neon-cyan: #33f7ff;
+    --neon-purple: #b026ff;
+    --neon-yellow: #fff34d;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background:
+      repeating-linear-gradient(90deg, rgba(255,46,136,.05) 0 1px, transparent 1px 48px),
+      radial-gradient(ellipse at 50% -10%, #2a1354 0%, var(--bg-deep) 55%, #020103 100%);
+    color: var(--text-main);
+    font-family: var(--font-body);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow-x: hidden;
+  }
+
+  #app {
+    position: relative;
+    width: 800px;
+    max-width: 100vw;
+  }
+
+  h1, h2, h3, .pixel {
+    font-family: var(--font-pixel);
+  }
+
+  /* ---------- textos "de ambiente" flutuam levemente — nunca a pergunta/opções ---------- */
+  @keyframes floatSoft {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-4px); }
+  }
+  .float { animation: floatSoft 4.6s ease-in-out infinite; }
+  .float.d2 { animation-delay: .5s; }
+  .float.d3 { animation-delay: 1s; }
+
+  /* ---------- HUD ---------- */
+  #hud {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: linear-gradient(180deg, #180b34, #0a0420);
+    border: 2px solid var(--wall-color);
+    border-bottom: none;
+    border-radius: 10px 10px 0 0;
+    box-shadow: 0 0 18px rgba(176,38,255,.15);
+  }
+  #hud .hud-block { display:flex; align-items:center; gap:10px; }
+  #floorLabel {
+    font-family: var(--font-pixel);
+    font-size: 11px;
+    color: var(--gold);
+    letter-spacing: 1px;
+    text-shadow: 0 0 8px rgba(245,212,138,.5);
+  }
+  #hearts { display:flex; gap:6px; }
+  .heart {
+    width: 16px; height: 16px;
+    background: var(--neon-pink);
+    clip-path: polygon(50% 15%, 61% 5%, 75% 5%, 88% 18%, 88% 33%, 50% 75%, 12% 33%, 12% 18%, 25% 5%, 39% 5%);
+    filter: drop-shadow(0 0 4px rgba(255,46,136,.85));
+    transition: transform .25s ease;
+  }
+  .heart.lost { background: #241338; filter: none; }
+  .heart.losing { animation: heartPop .35s ease; }
+  @keyframes heartPop {
+    0% { transform: scale(1); }
+    30% { transform: scale(1.6) rotate(-8deg); }
+    60% { transform: scale(0.75) rotate(6deg); }
+    100% { transform: scale(1); }
+  }
+  #bossTag {
+    font-family: var(--font-pixel);
+    font-size: 10px;
+    color: var(--neon-cyan);
+    opacity: 0.9;
+    text-shadow: 0 0 6px rgba(51,247,255,.6);
+  }
+
+  /* ---------- CANVAS ---------- */
+  #canvasWrap {
+    position: relative;
+    border: 2px solid var(--wall-color);
+    border-top: none;
+    border-radius: 0 0 10px 10px;
+    overflow: hidden;
+    box-shadow: 0 25px 60px -20px rgba(0,0,0,.9), inset 0 0 60px rgba(176,38,255,.06);
+  }
+  #gameCanvas {
+    display: block;
+    background: var(--floor-color);
+    width: 100%;
+    height: auto;
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+  }
+  /* véu de cor dinâmico estilo synthwave, por cima do jogo */
+  #colorWash {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(120deg, var(--neon-pink), var(--neon-purple), var(--neon-cyan), var(--neon-yellow), var(--neon-pink));
+    background-size: 400% 400%;
+    mix-blend-mode: overlay;
+    opacity: .12;
+    animation: washMove 14s ease-in-out infinite;
+    z-index: 14;
+  }
+  @keyframes washMove {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+  /* varredura estilo CRT sobre o jogo, puramente decorativa */
+  #scanlines {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      to bottom,
+      rgba(0,0,0,0) 0px,
+      rgba(0,0,0,0) 2px,
+      rgba(0,0,0,.12) 3px,
+      rgba(0,0,0,0) 4px
+    );
+    mix-blend-mode: multiply;
+    z-index: 15;
+  }
+  #vignette {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.55) 100%);
+    z-index: 16;
+  }
+  /* instruções ficam fora do mapa, no rodapé da área do jogo */
+  #hint {
+    position: static;
+    width: 100%;
+    margin-top: 10px;
+    padding: 8px 10px;
+    text-align: center;
+    font-family: var(--font-pixel);
+    font-size: 9px;
+    line-height: 1.7;
+    color: rgba(238,232,255,.62);
+    background: rgba(10,6,32,.72);
+    border: 1px solid rgba(176,38,255,.18);
+    border-radius: 6px;
+    pointer-events: none;
+  }
+
+  .hidden { display: none !important; }
+
+  /* ---------- OVERLAY SCREENS (title / gameover / victory) ---------- */
+  .screen {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 40px 36px;
+    background: radial-gradient(ellipse at 50% 20%, #23124a 0%, #050211 70%);
+    border: 2px solid var(--wall-color);
+    border-radius: 10px;
+    z-index: 20;
+    animation: screenIn .5s ease;
+  }
+  @keyframes screenIn {
+    from { opacity: 0; transform: scale(1.02); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  .screen .eyebrow-ice {
+    color: var(--neon-cyan);
+    font-family: var(--font-pixel);
+    font-size: 11px;
+    letter-spacing: 2px;
+    margin-bottom: 14px;
+    text-shadow: 0 0 12px rgba(51,247,255,.7);
+  }
+  .screen h1 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 30px;
+    color: var(--gold);
+    margin: 0 0 18px 0;
+    line-height: 1.5;
+    letter-spacing: .5px;
+    text-shadow: 0 0 10px rgba(245,212,138,.5), 0 0 26px rgba(255,46,136,.25);
+  }
+  .screen p.lore {
+    font-family: var(--font-body);
+    font-size: 18px;
+    line-height: 1.7;
+    color: var(--text-main);
+    max-width: 560px;
+    margin: 0 auto 10px auto;
+  }
+  .screen p.lore + p.lore { margin-top: 12px; }
+  .screen .controls-note {
+    margin-top: 22px;
+    font-family: var(--font-pixel);
+    font-size: 10px;
+    color: var(--text-dim);
+    line-height: 2.1;
+  }
+  .btn {
+    font-family: var(--font-pixel);
+    font-size: 12px;
+    color: #14001a;
+    background: linear-gradient(180deg, var(--gold), var(--gold-dim));
+    border: none;
+    padding: 14px 26px;
+    border-radius: 8px;
+    cursor: pointer;
+    margin-top: 26px;
+    box-shadow: 0 8px 0 #7a5f2f, 0 12px 24px rgba(255,46,136,.25);
+    transition: transform .08s ease, box-shadow .2s ease;
+    animation: btnGlow 2.4s ease-in-out infinite;
+  }
+  @keyframes btnGlow {
+    0%, 100% { box-shadow: 0 8px 0 #7a5f2f, 0 12px 24px rgba(255,46,136,.2); }
+    50% { box-shadow: 0 8px 0 #7a5f2f, 0 12px 30px rgba(51,247,255,.35); }
+  }
+  .btn:hover { transform: translateY(-2px); }
+  .btn:active { transform: translateY(3px); box-shadow: 0 4px 0 #7a5f2f; }
+  .btn.ice {
+    background: linear-gradient(180deg, var(--ice), #2b8fc7);
+    box-shadow: 0 8px 0 #145f88, 0 12px 20px rgba(0,0,0,.4);
+  }
+  #victoryScreen .btn {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  #creditsBtn {
+    margin-top: 18px;
+    background: linear-gradient(180deg, #b026ff, #6420a8);
+    box-shadow: 0 8px 0 #42156f, 0 12px 20px rgba(176,38,255,.28);
+    font-size: 10px;
+  }
+  #creditsBtn:hover {
+    box-shadow: 0 8px 0 #42156f, 0 12px 28px rgba(176,38,255,.42);
+  }
+  #creditsScreen h1 {
+    color: var(--gold);
+    text-shadow: 0 0 18px rgba(245,212,138,.45);
+  }
+  #creditsScreen .controls-note {
+    max-width: 560px;
+    margin-left: auto;
+    margin-right: auto;
+    text-align: left;
+    padding: 14px 18px;
+    border: 1px solid rgba(176,38,255,.28);
+    border-radius: 8px;
+    background: rgba(10,4,32,.45);
+  }
+
+  #gameOverScreen h1 { color: var(--neon-pink); text-shadow: 0 0 18px rgba(255,46,136,.55); }
+  #victoryScreen h1 { color: var(--gold); }
+
+  /* ---------- COMBAT MODAL ---------- */
+  #modalOverlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(3,1,10,.75);
+    backdrop-filter: blur(2px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+    padding: 18px;
+  }
+  #modalBox {
+    width: 560px;
+    max-width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    background: linear-gradient(180deg, var(--bg-panel), var(--bg-panel-2));
+    border: 2px solid var(--boss-accent, var(--arcane));
+    border-radius: 12px;
+    padding: 26px 28px 22px 28px;
+    box-shadow: 0 30px 70px -15px rgba(0,0,0,.9), 0 0 0 6px rgba(0,0,0,.25), 0 0 26px var(--boss-accent, var(--arcane));
+    animation: popIn .28s cubic-bezier(.2,1.4,.4,1);
+  }
+  @keyframes popIn {
+    from { opacity: 0; transform: scale(.82) translateY(10px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+  }
+  #modalBox.shake { animation: hitShake .34s ease; }
+  @keyframes hitShake {
+    0% { transform: translateX(0); }
+    15% { transform: translateX(-10px) rotate(-1deg); }
+    30% { transform: translateX(9px) rotate(1deg); }
+    45% { transform: translateX(-7px); }
+    60% { transform: translateX(6px); }
+    75% { transform: translateX(-3px); }
+    100% { transform: translateX(0); }
+  }
+  #modalBox.pulse-correct { animation: correctPulse .5s ease; }
+  @keyframes correctPulse {
+    0% { box-shadow: 0 30px 70px -15px rgba(0,0,0,.9), 0 0 0 6px rgba(0,0,0,.25), 0 0 10px #4ade80; }
+    40% { box-shadow: 0 30px 70px -15px rgba(0,0,0,.9), 0 0 0 6px rgba(0,0,0,.25), 0 0 46px #4ade80; }
+    100% { box-shadow: 0 30px 70px -15px rgba(0,0,0,.9), 0 0 0 6px rgba(0,0,0,.25), 0 0 26px var(--boss-accent, var(--arcane)); }
+  }
+  #bossRow {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 14px;
+  }
+  #bossInfo {
+    min-width: 0;
+    flex: 1;
+  }
+  #modalHeartsWrap {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 5px;
+    flex-shrink: 0;
+    padding-left: 10px;
+  }
+  .modal-hearts-label {
+    font-family: var(--font-pixel);
+    font-size: 8px;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    text-shadow: 0 0 6px rgba(51,247,255,.35);
+  }
+  #modalHearts {
+    display: flex;
+    gap: 6px;
+    min-height: 16px;
+  }
+  #modalHearts .heart {
+    width: 16px;
+    height: 16px;
+  }
+  #bossAvatar {
+    width: 46px; height: 46px;
+    border-radius: 4px;
+    flex-shrink: 0;
+    image-rendering: pixelated;
+    box-shadow: inset 0 0 0 2px rgba(255,255,255,.18), 0 0 18px rgba(0,0,0,.5);
+    animation: avatarBob 1.6s ease-in-out infinite;
+  }
+  @keyframes avatarBob {
+    0%, 100% { transform: translateY(0) scale(1); }
+    50% { transform: translateY(-2px) scale(1.03); }
+  }
+  #bossName {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 19px;
+    margin: 0 0 4px 0;
+  }
+  #shieldTrack {
+    display: flex;
+    gap: 5px;
+  }
+  .shield-pip {
+    width: 20px; height: 8px;
+    border-radius: 3px;
+    background: var(--neon-purple);
+    box-shadow: 0 0 8px rgba(176,38,255,.8);
+    animation: pipGlow 1.8s ease-in-out infinite;
+  }
+  @keyframes pipGlow {
+    0%, 100% { filter: brightness(1); }
+    50% { filter: brightness(1.4); }
+  }
+  .shield-pip.broken { background: #241338; box-shadow:none; animation:none; }
+
+  #bossDialogue {
+    font-family: var(--font-body);
+    font-style: italic;
+    color: var(--ice-soft);
+    font-size: 16px;
+    line-height: 1.6;
+    border-left: 3px solid var(--boss-accent, var(--arcane));
+    padding-left: 12px;
+    margin: 0 0 18px 0;
+  }
+  #questionText {
+    font-family: var(--font-body);
+    font-size: 17.5px;
+    line-height: 1.65;
+    color: var(--text-main);
+    margin: 0 0 18px 0;
+  }
+  #optionsContainer {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .option-btn {
+    font-family: var(--font-body);
+    font-size: 16px;
+    text-align: left;
+    color: var(--text-main);
+    background: #120a28;
+    border: 2px solid var(--wall-color);
+    border-radius: 8px;
+    padding: 12px 14px;
+    cursor: pointer;
+    transition: border-color .12s ease, background .12s ease, transform .06s ease, box-shadow .12s ease;
+  }
+  .option-btn:hover:not(:disabled) {
+    border-color: var(--neon-cyan);
+    background: #16123a;
+    transform: translateY(-1px);
+    box-shadow: 0 0 14px rgba(51,247,255,.25);
+  }
+  .option-btn:active:not(:disabled) { transform: translateY(1px) scale(.98); }
+  .option-btn:disabled { cursor: default; opacity: .55; }
+  .option-btn .opt-letter {
+    font-family: var(--font-pixel);
+    font-size: 11px;
+    color: var(--gold);
+    margin-right: 8px;
+  }
+  .option-btn.correct-pick {
+    border-color: #4ade80;
+    background: #0c2718;
+    animation: choicePop .3s ease;
+  }
+  .option-btn.wrong-pick {
+    border-color: var(--neon-pink);
+    background: #300a1c;
+    animation: choicePop .3s ease;
+  }
+  @keyframes choicePop {
+    0% { transform: scale(1); }
+    40% { transform: scale(1.04); }
+    100% { transform: scale(1); }
+  }
+
+  #feedback {
+    margin-top: 16px;
+    padding: 14px 16px;
+    border-radius: 8px;
+    font-family: var(--font-body);
+    font-size: 15.5px;
+    line-height: 1.6;
+    display: none;
+  }
+  #feedback.show { display: block; animation: feedbackIn .25s ease; }
+  @keyframes feedbackIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  #feedback.correct {
+    background: rgba(74,222,128,.1);
+    border: 1px solid rgba(74,222,128,.4);
+    color: #bbf7d0;
+  }
+  #feedback.wrong {
+    background: rgba(255,46,136,.1);
+    border: 1px solid rgba(255,46,136,.4);
+    color: #ffc9de;
+  }
+  #feedback .fb-title {
+    font-family: var(--font-pixel);
+    font-size: 11px;
+    display: block;
+    margin-bottom: 8px;
+  }
+
+  #feedback .feedback-continue {
+    display: block;
+    margin: 16px auto 0 auto;
+    font-family: var(--font-pixel);
+    font-size: 10px;
+    color: #14001a;
+    background: linear-gradient(180deg, var(--gold), var(--gold-dim));
+    border: none;
+    border-radius: 7px;
+    padding: 11px 18px;
+    cursor: pointer;
+    box-shadow: 0 5px 0 #7a5f2f, 0 8px 18px rgba(245,212,138,.18);
+    transition: transform .08s ease, box-shadow .12s ease;
+  }
+
+  #feedback .feedback-continue:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 7px 0 #7a5f2f, 0 10px 22px rgba(245,212,138,.28);
+  }
+
+  #feedback .feedback-continue:active {
+    transform: translateY(2px);
+    box-shadow: 0 3px 0 #7a5f2f;
+  }
+
+  @media (max-width: 820px) {
+    #app { width: 100vw; }
+    #optionsContainer { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <div id="hud">
+    <div class="hud-block">
+      <span id="floorLabel">ANDAR 1 / 6</span>
+    </div>
+    <div class="hud-block">
+      <span id="bossTag"></span>
+    </div>
+    <div class="hud-block" id="hearts"></div>
+  </div>
+
+  <div id="canvasWrap">
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <div id="colorWash"></div>
+    <div id="scanlines"></div>
+    <div id="vignette"></div>
+
+    <!-- TELA DE TÍTULO -->
+    <div id="titleScreen" class="screen">
+      <div class="eyebrow-ice float">Reino de Arithmia</div>
+      <h1>A Torre de<br>Al-Kwarizmi</h1>
+      <p class="lore float d2">O Reino de Arithmia está congelando sob o Feitiço do Gelo Absoluto, lançado pelo Mago Supremo no topo da Grande Torre. O calor do reino depende da energia de cristais que crescem exponencialmente — e eles estão morrendo.</p>
+      <p class="lore float d3">Você é o aprendiz que deve subir os 6 andares da torre, decifrando os padrões de crescimento e decaimento mágico para derrotar cada guardião elemental e salvar Arithmia.</p>
+      <div class="controls-note float">setas ou WASD movem o herói ↑ ↓ ← → / W A S D<br>esbarrar no chefe abre o combate matemático</div>
+      <button class="btn" id="startBtn">Iniciar Jornada</button>
+    </div>
+
+    <!-- TELA DE GAME OVER -->
+    <div id="gameOverScreen" class="screen hidden">
+      <div class="eyebrow-ice float" style="color:var(--neon-pink)">Arithmia</div>
+      <h1>O Reino sucumbiu<br>ao gelo eterno...</h1>
+      <p class="lore float d2">Suas forças se esvaem antes de romper o feitiço. Mas a torre permanece — e o conhecimento pode ser buscado novamente.</p>
+      <button class="btn ice" id="retryBtn">Tentar Novamente</button>
+    </div>
+
+    <!-- TELA DE VITÓRIA -->
+    <div id="victoryScreen" class="screen hidden">
+      <div class="eyebrow-ice float">Arithmia está salva</div>
+      <h1>O calor voltou<br>ao reino</h1>
+      <p class="lore float d2">O escudo do Mago Supremo se despedaça em cristais de luz. Você atravessa o portal final, o Feitiço do Gelo Absoluto se desfaz, e o calor retorna às terras de Arithmia.</p>
+      <p class="lore float d3">Você, aprendiz, é agora aclamado como o <strong>Grão-Mestre das Funções</strong> — aquele que decifrou o crescimento e o decaimento que regem toda a magia da torre.</p>
+      <button class="btn" id="playAgainBtn">Jogar Novamente</button>
+      <button class="btn secondary" id="creditsBtn">Sobre a Função Exponencial</button>
+    </div>
+
+    <!-- TELA DE CRÉDITOS / OBJETIVO PEDAGÓGICO -->
+    <div id="creditsScreen" class="screen hidden">
+      <div class="eyebrow-ice float">Ferramenta de aprendizagem</div>
+      <h1>Função Exponencial</h1>
+      <p class="lore float d2">
+        A Torre de Al-Kwarizmi foi criada para transformar o estudo de funções exponenciais
+        em uma experiência gamificada, na qual cada andar apresenta um desafio matemático
+        relacionado a situações de crescimento e decaimento.
+      </p>
+      <p class="lore float d3">
+        Durante a jornada, você encontra exemplos de expressões exponenciais, interpreta
+        bases maiores que 1 e bases entre 0 e 1, calcula valores e utiliza essas ideias
+        para avançar pela torre.
+      </p>
+      <div class="controls-note float">
+        <strong>O que estudar:</strong><br>
+        • crescimento e decaimento exponencial<br>
+        • identificação da base e do expoente<br>
+        • cálculo de valores de funções exponenciais<br>
+        • interpretação de modelos exponenciais
+      </div>
+      <button class="btn ice" id="backToVictoryBtn">Voltar</button>
+    </div>
+  </div>
+
+  <div id="hint" class="float">SETAS ou WASD para mover · encoste 3x nos blocos coloridos para quebrá-los · esbarre no chefe para batalhar</div>
+
+</div>
+
+<!-- MODAL DE COMBATE MATEMÁTICO -->
+<div id="modalOverlay" class="hidden">
+  <div id="modalBox">
+    <div id="bossRow">
+      <div id="bossAvatar"></div>
+      <div id="bossInfo">
+        <h2 id="bossName">—</h2>
+        <div id="shieldTrack" class="hidden"></div>
+      </div>
+      <div id="modalHeartsWrap" aria-label="Vida do jogador">
+        <span class="modal-hearts-label">VIDA</span>
+        <div id="modalHearts"></div>
+      </div>
+    </div>
+    <p id="bossDialogue" class="float"></p>
+    <p id="questionText"></p>
+    <div id="optionsContainer"></div>
+    <div id="feedback"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ==========================================================
+  // CONFIGURAÇÃO GERAL
+  // Renderizamos num canvas de baixa resolução (buffer) e
+  // ampliamos sem suavização — é o que dá o visual pixelado nítido.
+  // ==========================================================
+  const COLS = 20;
+  const ROWS = 15;
+  const TILE = 20; // tamanho do tile no buffer pixelado
+  const BUF_W = COLS * TILE; // 400
+  const BUF_H = ROWS * TILE; // 300
+  const OUT_W = 800, OUT_H = 600; // canvas visível (upscale 2x)
+
+  const canvas = document.getElementById("gameCanvas");
+  const ctx = canvas.getContext("2d");
+  ctx.imageSmoothingEnabled = false;
+
+  const buffer = document.createElement("canvas");
+  buffer.width = BUF_W;
+  buffer.height = BUF_H;
+  const bctx = buffer.getContext("2d");
+  bctx.imageSmoothingEnabled = false;
+
+  // ---------- utilitários de cor (para pintar cada andar com a
+  // paleta do seu chefe, e para o brilho dinâmico das paredes) ----------
+  function hexToRgb(hex) {
+    hex = hex.replace("#", "");
+    if (hex.length === 3) hex = hex.split("").map(function (c) { return c + c; }).join("");
+    const num = parseInt(hex, 16);
+    return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
+  }
+  function rgbToHex(r, g, b) {
+    function h(v) { return Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0"); }
+    return "#" + h(r) + h(g) + h(b);
+  }
+  function mixColor(hexA, hexB, t) {
+    const a = hexToRgb(hexA), b = hexToRgb(hexB);
+    return rgbToHex(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t);
+  }
+
+  // ==========================================================
+  // DADOS DOS ANDARES / CHEFES / PERGUNTAS
+  // (conteúdo pedagógico nível ENEM/vestibular sobre Função Exponencial)
+  // ==========================================================
+  const floorsData = [
+    { // Andar 1
+      name: "Guardião do Gelo",
+      color: "#7dd3fc",
+      accent: "#22b8d8",
+      glyph: "❄",
+      dialogue: "Humano tolo! Meu feitiço congelante evoca guerreiros mais rápido do que você consegue contar. Renda-se ao crescimento exponencial!",
+      question: {
+        text: "No laboratório da torre, o exército de Orcs de Gelo cresce segundo N(t) = 500 · 2^(t/3), com t em horas. Quanto tempo levará para que a horda atinja 4.000 monstros e invada o reino?",
+        options: ["3 h", "6 h", "9 h", "12 h"],
+        correct: 2,
+        explanation: "4000 = 500·2^(t/3) → 8 = 2^(t/3) → 2³ = 2^(t/3) → t/3 = 3 → t = 9 h."
+      }
+    },
+    { // Andar 2
+      name: "Serpente do Veneno",
+      color: "#86efac",
+      accent: "#22c55e",
+      glyph: "☣",
+      dialogue: "Você foi picado pelas minhas serpentes de ácido! Beba sua poção de cura se quiser, mas ela some do seu sangue em um piscar de olhos!",
+      question: {
+        text: "Você foi envenenado. A concentração do antídoto no seu sangue diminui seguindo a lei mágica C(t) = 80 · (0,5)^t, com t em horas. Qual será a concentração restante para te proteger após 3 horas?",
+        options: ["10 mg/L", "20 mg/L", "40 mg/L", "5 mg/L"],
+        correct: 0,
+        explanation: "C(3) = 80·(0,5)³ = 80·0,125 = 10 mg/L."
+      }
+    },
+    { // Andar 3
+      name: "Guardião do Tempo",
+      color: "#c4b5fd",
+      accent: "#8b5cf6",
+      glyph: "◷",
+      dialogue: "Sinta o peso das eras! Meus passos avançam, mas o seu tempo nesta sala se esgota a cada segundo!",
+      question: {
+        text: "O Guardião ativou uma Runa de Distorção Temporal. A energia residual dessa runa após t minutos é V(t) = 16000 · 4^(-0,5t). Qual será a energia da runa após 2 minutos de uso?",
+        options: ["8.000 u", "4.000 u", "2.000 u", "1.000 u"],
+        correct: 1,
+        explanation: "V(2) = 16000·4^(-0,5·2) = 16000·4⁻¹ = 16000/4 = 4000 u."
+      }
+    },
+    { // Andar 4
+      name: "Senhor do Ouro",
+      color: "#fde047",
+      accent: "#eab308",
+      glyph: "$",
+      dialogue: "Todo o seu conhecimento não vale nada diante da ganância! Veja seu ouro derreter sob minha influência!",
+      question: {
+        text: "O Guardião modelou a perda de poder das suas moedas sob o efeito de uma maldição através da função P(t) = P0 · a^t. Para que essa função represente um enfraquecimento contínuo do valor à medida que o tempo t passa, a base a deve:",
+        options: ["Ser maior que 1", "Ser menor que 0", "Ser igual a 1", "Ser maior que 0 e menor que 1"],
+        correct: 3,
+        explanation: "Uma função exponencial do tipo a^x é estritamente decrescente quando 0 < a < 1."
+      }
+    },
+    { // Andar 5
+      name: "Fera das Chamas",
+      color: "#fca5a5",
+      accent: "#ef4444",
+      glyph: "▲",
+      dialogue: "O incêndio do meu altar consome tudo! Apague o fogo se for capaz!",
+      question: {
+        text: "Para abrir o portão, você usa uma nevasca mágica. A área em chamas (em m²) após t minutos é A(t) = A0 · 2^(-0,1t). Se após 10 minutos a área em chamas caiu para 250 m², qual era a área inicial A0 do incêndio mágico?",
+        options: ["500 m²", "750 m²", "1000 m²", "350 m²"],
+        correct: 0,
+        explanation: "250 = A0·2^(-1) = A0·0,5 → A0 = 250/0,5 = 500 m²."
+      }
+    },
+    { // Andar 6 — Mago Supremo (batalha final com 5 subperguntas / escudo)
+      name: "Mago Supremo",
+      color: "#e9d5ff",
+      accent: "#a855f7",
+      glyph: "✦",
+      dialogue: "Incrível que tenha chegado até aqui, aprendiz. Mas meu escudo elemental possui 5 camadas de puro cálculo! Você será esmagado pela velocidade do crescimento infinito!",
+      shieldQuestions: [
+        {
+          text: "Desarme a primeira runa resolvendo a equação elemental: 3^(x+1) = 81. O valor de x é:",
+          options: ["2", "3", "4", "5"],
+          correct: 1,
+          explanation: "3^(x+1) = 3⁴ → x + 1 = 4 → x = 3."
+        },
+        {
+          text: "O gráfico de energia do Mago segue f(x) = 5 · 2^x. Em qual ponto essa linha de poder corta o eixo vertical Y?",
+          options: ["(0,1)", "(0,5)", "(0,2)", "(5,0)"],
+          correct: 1,
+          explanation: "A interseção com o eixo Y ocorre quando x = 0 → f(0) = 5·2⁰ = 5."
+        },
+        {
+          text: "Se o poder inicial é representado por 2^x = k, qual o valor do feitiço amplificado 2^(x+2) expresso em função de k?",
+          options: ["k+4", "k²", "2k", "4k"],
+          correct: 3,
+          explanation: "Por propriedade de potência, 2^(x+2) = 2^x · 2² = k · 4 = 4k."
+        },
+        {
+          text: "Qual o valor do escudo mágico gerado pela função f(x) = 9^x quando a variável x assume o valor fracionário 0,5?",
+          options: ["4.5", "3", "1", "81"],
+          correct: 1,
+          explanation: "Expoente 0,5 equivale a uma raiz quadrada → 9^0,5 = √9 = 3."
+        },
+        {
+          text: "Conforme o tempo x avança infinitamente, o valor do feitiço enfraquecido g(x) = 10 · (0,2)^x se aproximará de qual valor limite?",
+          options: ["10", "Infinito", "0", "2"],
+          correct: 2,
+          explanation: "Como a base 0,2 é menor que 1, a função decresce continuamente e se aproxima assintoticamente de 0."
+        }
+      ]
+    }
+  ];
+
+  // paleta de cada andar para pintar o labirinto (combina com o chefe)
+  function floorPalette(floor) {
+    return {
+      wall: mixColor(floor.accent, "#04010b", 0.80),
+      wallTop: mixColor(floor.accent, "#04010b", 0.55),
+      edgeA: floor.color,
+      edgeB: mixColor(floor.color, "#ffffff", 0.55),
+      floorA: mixColor(floor.accent, "#04010b", 0.94),
+      floorB: mixColor(floor.accent, "#04010b", 0.90)
+    };
+  }
+  const menuPalette = floorPalette({ accent: "#7c3aed", color: "#a78bfa" });
+
+  // ==========================================================
+  // GERAÇÃO DO MAPA DE CADA ANDAR (labirinto em serpente)
+  // laneCount = número de corredores; difficulty (0..5) deixa as
+  // passagens mais estreitas e adiciona chicanes/pilares progressivos.
+  // ==========================================================
+  function generateMaze(laneCount, difficulty) {
+    difficulty = difficulty || 0;
+    const grid = [];
+    for (let r = 0; r < ROWS; r++) grid.push(new Array(COLS).fill(1));
+
+    const interiorRows = ROWS - 2;
+    const dividers = laneCount - 1;
+    const baseRows = laneCount;
+    const extra = interiorRows - baseRows - dividers;
+
+    // distribui o espaço extra entre as faixas que NÃO são a última
+    // (a última fica sempre com largura 1, forçando a passagem única
+    // pelo Chefe), dando espaço para chicanes em várias faixas.
+    const laneHeights = new Array(laneCount).fill(1);
+    let remaining = Math.max(extra, 0);
+    const distributable = Math.max(laneCount - 1, 1);
+    for (let i = 0; i < laneCount - 1 && remaining > 0; i++) {
+      const share = Math.ceil(remaining / (distributable - i));
+      laneHeights[i] += share;
+      remaining -= share;
+    }
+    if (remaining > 0) laneHeights[0] += remaining;
+
+    const lanes = [];
+    let rowCursor = 1;
+    for (let i = 0; i < laneCount; i++) {
+      const h = laneHeights[i];
+      const rowStart = rowCursor;
+      const rowEnd = rowCursor + h - 1;
+      lanes.push({ rowStart, rowEnd });
+      rowCursor = rowEnd + 1;
+      if (i < laneCount - 1) rowCursor += 1;
+    }
+
+    // abre cada faixa por completo primeiro
+    for (let i = 0; i < laneCount; i++) {
+      const { rowStart, rowEnd } = lanes[i];
+      for (let r = rowStart; r <= rowEnd; r++) {
+        for (let c = 1; c <= COLS - 2; c++) grid[r][c] = 0;
+      }
+    }
+
+    // decoração/dificuldade: chicanes (faixas de altura 2) e pilares
+    // (faixas de altura >= 3), mais densos quanto maior a dificuldade.
+    for (let i = 0; i < laneCount - 1; i++) { // a última faixa nunca é decorada
+      const { rowStart, rowEnd } = lanes[i];
+      const h = rowEnd - rowStart + 1;
+      if (h === 2) {
+        const segLen = Math.max(2, 5 - difficulty);
+        let blockTop = Math.random() < 0.5;
+        let c = 3;
+        while (c <= COLS - 4) {
+          const segEnd = Math.min(c + segLen - 1, COLS - 4);
+          const rowToBlock = blockTop ? rowStart : rowStart + 1;
+          for (let cc = c; cc <= segEnd; cc++) grid[rowToBlock][cc] = 1;
+          blockTop = !blockTop;
+          c = segEnd + 2; // deixa 1 coluna de transição livre nas duas linhas
+        }
+      } else if (h >= 3) {
+        const step = Math.max(2, 4 - difficulty);
+        const phase = Math.random() < 0.5 ? 0 : 1;
+        for (let r = rowStart + 1; r <= rowEnd; r++) {
+          for (let c = 3 + phase; c <= COLS - 3; c += step) {
+            if ((r + c) % 2 === 0) grid[r][c] = 1;
+          }
+        }
+        // garante a linha rowStart sempre livre como caminho de segurança
+        for (let c = 1; c <= COLS - 2; c++) grid[rowStart][c] = 0;
+      }
+    }
+
+    // conecta faixas consecutivas através de "portas" na linha divisória.
+    // a largura da porta encolhe com a dificuldade (mais precisão exigida).
+    const gapWidth = difficulty >= 2 ? 1 : 2;
+    for (let i = 0; i < laneCount - 1; i++) {
+      const dividerRow = lanes[i].rowEnd + 1;
+      const isLastConnection = i === laneCount - 2;
+      const useLeft = isLastConnection ? true : i % 2 === 0;
+      const gapStart = useLeft ? 2 : COLS - 3 - (gapWidth - 1);
+      for (let g = 0; g < gapWidth; g++) grid[dividerRow][gapStart + g] = 0;
+    }
+
+    const start = { row: lanes[0].rowStart, col: 1 };
+    const lastLane = lanes[laneCount - 1];
+    const bossCell = { row: lastLane.rowStart, col: COLS - 3 };
+    // Portal de passagem para o próximo andar (liberado após derrotar o chefe).
+    const stairsCell = { row: lastLane.rowStart, col: COLS - 2 };
+
+    // Obstáculos temáticos destrutíveis: podem ficar no caminho e são removidos após 3 colisões.
+    const obstacleCountByFloor = [2, 3, 3, 4, 4, 2];
+    const obstacleCount = obstacleCountByFloor[Math.min(difficulty, 5)];
+    const obstacleCells = [];
+    const used = new Set();
+    let obstacleAttempts = 0;
+    while (obstacleCells.length < obstacleCount && obstacleAttempts < 180) {
+      obstacleAttempts++;
+      const r = 2 + Math.floor(Math.random() * Math.max(1, ROWS - 4));
+      const c = 3 + Math.floor(Math.random() * Math.max(1, COLS - 6));
+      const key = r + "," + c;
+      if (used.has(key) || grid[r][c] !== 0) continue;
+      if (r === start.row && c === start.col) continue;
+      if (r === bossCell.row && c === bossCell.col) continue;
+      if (r === stairsCell.row && c === stairsCell.col) continue;
+      if (r === lanes[0].rowStart || r === lastLane.rowStart) continue;
+      used.add(key);
+      // O obstáculo é um objeto destrutível, não uma parede permanente.
+      // A célula continua livre na grade e a colisão é tratada em tryMove().
+      obstacleCells.push({ row: r, col: c, type: difficulty, hits: 0, maxHits: 3, broken: false });
+    }
+
+    return { grid, start, bossCell, stairsCell, obstacleCells };
+  }
+
+  // BFS simples para validar conectividade do labirinto gerado
+  function isReachable(grid, start, target) {
+    const seen = new Set();
+    const queue = [start];
+    seen.add(start.row + "," + start.col);
+    while (queue.length) {
+      const cur = queue.shift();
+      if (cur.row === target.row && cur.col === target.col) return true;
+      const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+      for (let d = 0; d < dirs.length; d++) {
+        const nr = cur.row + dirs[d][0], nc = cur.col + dirs[d][1];
+        if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS) continue;
+        if (grid[nr][nc] === 1) continue;
+        const key = nr + "," + nc;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        queue.push({ row: nr, col: nc });
+      }
+    }
+    return false;
+  }
+
+  function isValidMaze(m) {
+    if (!isReachable(m.grid, m.start, m.bossCell)) return false;
+    const blocked = m.grid.map(function (row) { return row.slice(); });
+    blocked[m.bossCell.row][m.bossCell.col] = 1;
+    if (isReachable(blocked, m.start, m.stairsCell)) return false; // não pode dar pra pular o chefe
+    const opened = m.grid.map(function (row) { return row.slice(); });
+    opened[m.bossCell.row][m.bossCell.col] = 0;
+    if (!isReachable(opened, m.start, m.stairsCell)) return false; // escada deve abrir após o chefe
+    return true;
+  }
+
+  // gera um labirinto válido; os obstáculos destrutíveis não alteram a conectividade
+  // permanente do labirinto, então o jogador pode quebrá-los quando necessário.
+  function generateValidMaze(laneCount, difficulty) {
+    for (let attempt = 0; attempt < 25; attempt++) {
+      const m = generateMaze(laneCount, difficulty);
+      if (isValidMaze(m)) return m;
+    }
+    return generateMaze(laneCount, difficulty);
+  }
+
+  // ==========================================================
+  // ESTADO DO JOGO
+  // ==========================================================
+  let state = "title"; // title | playing | question | shield | gameover | victory
+  let floorIndex = 0; // 0..5
+  let hp = 3;
+  let maze = null;
+  let bossCell = null;
+  let stairsCell = null;
+  let obstacleCells = [];
+  let healingCell = null;
+  let healingUsedThisFloor = false;
+  let bossDefeatedThisFloor = false;
+  let shieldStep = 0; // andar 6: qual subpergunta (0..4)
+  let currentPalette = menuPalette;
+
+  // jogador: posição lógica (grade) + posição visual (interpolada, em tiles)
+  // facingDir controla o sprite: 'down' | 'up' | 'left' | 'right'
+  const player = { row: 1, col: 1, vRow: 1, vCol: 1, facing: 1, facingDir: "down", walking: false, walkT: 0 };
+
+  // ---------- efeitos visuais (juice) ----------
+  let shakeMag = 0; // tremor de tela em pixels (buffer)
+  let flashColor = null, flashAlpha = 0; // clarão colorido sobre a cena
+  const particles = []; // partículas: {x,y,vx,vy,life,color}
+  let timeAcc = 0; // relógio para animações idle (sin)
+
+  // transição entre andares (fade curto estilo corte seco)
+  const transition = { active: false, phase: null, t: 0, duration: 220, pending: null };
+
+  function triggerShake(mag) { shakeMag = Math.max(shakeMag, mag); }
+  function triggerFlash(color, alpha) { flashColor = color; flashAlpha = alpha; }
+  function spawnBurst(row, col, color, count) {
+    const cx = col * TILE + TILE / 2, cy = row * TILE + TILE / 2;
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 1.2 + Math.random() * 2.4;
+      particles.push({
+        x: cx, y: cy,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        life: 1,
+        color: color
+      });
+    }
+  }
+  function startTransition(pendingFn) {
+    transition.active = true;
+    transition.phase = "out";
+    transition.t = 0;
+    transition.pending = pendingFn;
+  }
+
+  // ==========================================================
+  // ELEMENTOS DE UI
+  // ==========================================================
+  const el = {
+    floorLabel: document.getElementById("floorLabel"),
+    bossTag: document.getElementById("bossTag"),
+    hearts: document.getElementById("hearts"),
+    modalHearts: document.getElementById("modalHearts"),
+    titleScreen: document.getElementById("titleScreen"),
+    gameOverScreen: document.getElementById("gameOverScreen"),
+    victoryScreen: document.getElementById("victoryScreen"),
+    creditsScreen: document.getElementById("creditsScreen"),
+    startBtn: document.getElementById("startBtn"),
+    retryBtn: document.getElementById("retryBtn"),
+    playAgainBtn: document.getElementById("playAgainBtn"),
+    creditsBtn: document.getElementById("creditsBtn"),
+    backToVictoryBtn: document.getElementById("backToVictoryBtn"),
+    modalOverlay: document.getElementById("modalOverlay"),
+    modalBox: document.getElementById("modalBox"),
+    bossAvatar: document.getElementById("bossAvatar"),
+    bossName: document.getElementById("bossName"),
+    bossDialogue: document.getElementById("bossDialogue"),
+    questionText: document.getElementById("questionText"),
+    optionsContainer: document.getElementById("optionsContainer"),
+    feedback: document.getElementById("feedback"),
+    shieldTrack: document.getElementById("shieldTrack"),
+  };
+
+  // ==========================================================
+  // CICLO DE JOGO
+  // ==========================================================
+  function initGame() {
+    hp = 3;
+    floorIndex = 0;
+    state = "playing";
+    el.titleScreen.classList.add("hidden");
+    el.gameOverScreen.classList.add("hidden");
+    el.victoryScreen.classList.add("hidden");
+    el.creditsScreen.classList.add("hidden");
+    el.modalOverlay.classList.add("hidden");
+    particles.length = 0;
+    loadFloor(0, true);
+    updateHUD();
+  }
+
+  // Escolhe uma única câmara opcional de recuperação por andar.
+  function findHealingCell(grid, start, boss, stairs, obstacles) {
+    const blocked = new Set((obstacles || []).map(function (o) { return o.row + "," + o.col; }));
+    const candidates = [];
+    for (let r = 1; r < ROWS - 1; r++) {
+      for (let c = 2; c < COLS - 3; c++) {
+        if (grid[r][c] !== 0) continue;
+        const key = r + "," + c;
+        if (blocked.has(key)) continue;
+        if (r === start.row && c === start.col) continue;
+        if (r === boss.row && c === boss.col) continue;
+        if (r === stairs.row && c === stairs.col) continue;
+        if (Math.abs(c - start.col) + Math.abs(r - start.row) < 7) continue;
+        if (c > COLS - 6) continue;
+        candidates.push({ row: r, col: c });
+      }
+    }
+    return candidates.length ? candidates[Math.floor(Math.random() * candidates.length)] : null;
+  }
+
+  function loadFloor(idx, snap) {
+    floorIndex = idx;
+    const laneCount = Math.min(idx + 2, 7);
+    const m = generateValidMaze(laneCount, idx);
+    maze = m.grid;
+    currentPalette = floorPalette(floorsData[idx]);
+    player.row = m.start.row; player.col = m.start.col;
+    if (snap) { player.vRow = player.row; player.vCol = player.col; }
+    player.facingDir = "down"; player.facing = 1;
+    bossCell = m.bossCell;
+    stairsCell = m.stairsCell;
+    obstacleCells = m.obstacleCells || [];
+    healingCell = findHealingCell(m.grid, m.start, m.bossCell, m.stairsCell, obstacleCells);
+    healingUsedThisFloor = false;
+    bossDefeatedThisFloor = false;
+    shieldStep = 0;
+    state = "playing";
+    updateHUD();
+  }
+
+  function updateHUD() {
+    el.floorLabel.textContent = "ANDAR " + (floorIndex + 1) + " / 6";
+    el.bossTag.textContent = floorsData[floorIndex] ? floorsData[floorIndex].name.toUpperCase() : "";
+
+    updateHearts(el.hearts, true);
+    updateHearts(el.modalHearts, false);
+  }
+
+  function updateHearts(container, animateLoss) {
+    if (!container) return;
+
+    const existingHearts = container.children;
+    if (existingHearts.length !== 3) {
+      container.innerHTML = "";
+      for (let i = 0; i < 3; i++) {
+        const h = document.createElement("div");
+        h.className = "heart" + (i < hp ? "" : " lost");
+        container.appendChild(h);
+      }
+      return;
+    }
+
+    for (let i = 0; i < 3; i++) {
+      const h = existingHearts[i];
+      const shouldBeLost = i >= hp;
+      const isLost = h.classList.contains("lost");
+
+      if (shouldBeLost && !isLost) {
+        h.classList.add("lost");
+        if (animateLoss) {
+          h.classList.add("losing");
+          setTimeout(function () { h.classList.remove("losing"); }, 350);
+        }
+      } else if (!shouldBeLost && isLost) {
+        h.classList.remove("lost");
+      }
+    }
+  }
+
+  // ==========================================================
+  // MOVIMENTAÇÃO
+  // ==========================================================
+  function getObstacleAt(row, col) {
+    for (let i = 0; i < obstacleCells.length; i++) {
+      const o = obstacleCells[i];
+      if (!o.broken && o.row === row && o.col === col) return o;
+    }
+    return null;
+  }
+
+  function breakObstacle(obstacle) {
+    obstacle.broken = true;
+    triggerShake(5);
+    triggerFlash("#f8fafc", 0.22);
+    const floor = floorsData[floorIndex];
+    spawnBurst(obstacle.row, obstacle.col, floor.color, 22);
+    setTimeout(function () {
+      const idx = obstacleCells.indexOf(obstacle);
+      if (idx >= 0) obstacleCells.splice(idx, 1);
+    }, 0);
+  }
+
+  function hitObstacle(obstacle) {
+    obstacle.hits = Math.min(obstacle.maxHits, obstacle.hits + 1);
+    triggerShake(2 + obstacle.hits);
+    triggerFlash("#ffffff", 0.08 + obstacle.hits * 0.03);
+    const floor = floorsData[floorIndex];
+    spawnBurst(obstacle.row, obstacle.col, floor.color, obstacle.hits === 3 ? 14 : 6);
+    if (obstacle.hits >= obstacle.maxHits) {
+      breakObstacle(obstacle);
+      return true;
+    }
+    return false;
+  }
+
+  function tryMove(dr, dc) {
+    if (state !== "playing" || transition.active) return;
+    const nr = player.row + dr;
+    const nc = player.col + dc;
+
+    // define a direção que o personagem encara (4 direções)
+    if (dr < 0) player.facingDir = "up";
+    else if (dr > 0) player.facingDir = "down";
+    else if (dc > 0) { player.facingDir = "right"; player.facing = 1; }
+    else if (dc < 0) { player.facingDir = "left"; player.facing = -1; }
+
+    if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS) return;
+    if (maze[nr][nc] === 1) return; // parede permanente
+
+    // Blocos coloridos são destrutíveis: cada tentativa de avançar contra
+    // eles causa uma rachadura. Na terceira tentativa, o bloco quebra e
+    // o jogador entra imediatamente na célula.
+    const obstacle = getObstacleAt(nr, nc);
+    if (obstacle) {
+      const brokenNow = hitObstacle(obstacle);
+      if (!brokenNow) return;
+    }
+
+    if (nr === bossCell.row && nc === bossCell.col && !bossDefeatedThisFloor) {
+      // pequeno "encontrão" no chefe antes de abrir a batalha
+      triggerShake(3);
+      openQuestion();
+      return;
+    }
+    if (nr === stairsCell.row && nc === stairsCell.col) {
+      if (!bossDefeatedThisFloor) return; // não deveria acontecer, mas por segurança
+      onReachStairs();
+      return;
+    }
+    if (healingCell && nr === healingCell.row && nc === healingCell.col && !healingUsedThisFloor) {
+      if (hp < 3) {
+        hp = Math.min(3, hp + 1);
+        updateHUD();
+        triggerFlash("#4ade80", 0.28);
+        spawnBurst(healingCell.row, healingCell.col, "#86efac", 18);
+        healingUsedThisFloor = true;
+      }
+    }
+    player.row = nr;
+    player.col = nc;
+    player.walking = true;
+  }
+
+  function onReachStairs() {
+    triggerFlash("#f5d48a", 0.55);
+    spawnBurst(stairsCell.row, stairsCell.col, "#f5d48a", 22);
+    startTransition(function () {
+      if (floorIndex < 5) {
+        loadFloor(floorIndex + 1, true);
+      } else {
+        state = "victory";
+        el.victoryScreen.classList.remove("hidden");
+      }
+    });
+  }
+
+  window.addEventListener("keydown", function (e) {
+    switch (e.key) {
+      case "ArrowUp":
+      case "w":
+      case "W":
+        e.preventDefault();
+        tryMove(-1, 0);
+        break;
+      case "ArrowDown":
+      case "s":
+      case "S":
+        e.preventDefault();
+        tryMove(1, 0);
+        break;
+      case "ArrowLeft":
+      case "a":
+      case "A":
+        e.preventDefault();
+        tryMove(0, -1);
+        break;
+      case "ArrowRight":
+      case "d":
+      case "D":
+        e.preventDefault();
+        tryMove(0, 1);
+        break;
+    }
+  });
+
+  // ==========================================================
+  // COMBATE / PERGUNTAS
+  // ==========================================================
+  function openQuestion() {
+    const floor = floorsData[floorIndex];
+    document.documentElement.style.setProperty("--boss-accent", floor.accent);
+
+    if (floorIndex < 5) {
+      state = "question";
+      renderModal(floor, floor.question, null);
+    } else {
+      state = "shield";
+      renderModal(floor, floor.shieldQuestions[shieldStep], shieldStep);
+    }
+  }
+
+  function renderModal(floor, question, shieldIdx) {
+    updateHearts(el.modalHearts, false);
+    el.modalOverlay.classList.remove("hidden");
+    el.modalBox.classList.remove("shake", "pulse-correct");
+    // força reflow para reiniciar a animação de entrada em reaberturas
+    void el.modalBox.offsetWidth;
+    el.modalBox.style.animation = "none";
+    void el.modalBox.offsetWidth;
+    el.modalBox.style.animation = "";
+
+    el.bossAvatar.style.background = floor.color;
+    el.bossAvatar.textContent = "";
+    el.bossAvatar.style.display = "flex";
+    el.bossAvatar.style.alignItems = "center";
+    el.bossAvatar.style.justifyContent = "center";
+    el.bossAvatar.style.fontSize = "22px";
+    el.bossAvatar.style.color = "#14001a";
+    el.bossAvatar.textContent = floor.glyph || "";
+    el.bossName.textContent = floor.name;
+    el.bossDialogue.textContent = floor.dialogue;
+    el.questionText.textContent = question.text;
+    el.feedback.className = "";
+    el.feedback.innerHTML = "";
+
+    if (shieldIdx !== null) {
+      el.shieldTrack.classList.remove("hidden");
+      el.shieldTrack.innerHTML = "";
+      for (let i = 0; i < 5; i++) {
+        const pip = document.createElement("div");
+        pip.className = "shield-pip" + (i < shieldIdx ? " broken" : "");
+        el.shieldTrack.appendChild(pip);
+      }
+    } else {
+      el.shieldTrack.classList.add("hidden");
+      el.shieldTrack.innerHTML = "";
+    }
+
+    const letters = ["A", "B", "C", "D"];
+    el.optionsContainer.innerHTML = "";
+    question.options.forEach(function (optText, idx) {
+      const btn = document.createElement("button");
+      btn.className = "option-btn";
+      btn.innerHTML = '<span class="opt-letter">' + letters[idx] + "</span>" + optText;
+      btn.addEventListener("click", function () { handleAnswer(idx, question, btn); });
+      el.optionsContainer.appendChild(btn);
+    });
+  }
+
+  function lockOptions() {
+    Array.from(el.optionsContainer.querySelectorAll(".option-btn")).forEach(function (b) {
+      b.disabled = true;
+    });
+  }
+
+  function handleAnswer(idx, question, btnEl) {
+    lockOptions();
+    const correct = idx === question.correct;
+
+    if (correct) {
+      btnEl.classList.add("correct-pick");
+      el.modalBox.classList.add("pulse-correct");
+
+      // A resposta correta fica na tela junto com a resolução.
+      // O jogador só sai desta pergunta ao apertar "Prosseguir".
+      showFeedback(true, "Resolvido!", question.explanation, true);
+
+      if (floorIndex < 5) {
+        bossDefeatedThisFloor = true;
+        triggerFlash("#4ade80", 0.35);
+        spawnBurst(bossCell.row, bossCell.col, floorsData[floorIndex].color, 26);
+      } else {
+        // Quinta e última camada do Mago Supremo destruída:
+        // libera imediatamente o portal final no mapa.
+        bossDefeatedThisFloor = true;
+        triggerFlash("#c084fc", 0.45);
+        spawnBurst(bossCell.row, bossCell.col, floorsData[floorIndex].color, 36);
+      }
+      // No andar 6, o botão "Prosseguir" apenas fecha o combate;
+      // o portal já fica liberado para o jogador atravessar.
+    } else {
+      // Em caso de erro, não revelamos nem destacamos a alternativa correta.
+      btnEl.classList.add("wrong-pick");
+
+      hp--;
+      updateHUD();
+      el.modalBox.classList.add("shake");
+      showFeedback(false, "Você errou!", "Tente novamente.");
+
+      if (hp <= 0) {
+        setTimeout(function () {
+          el.modalOverlay.classList.add("hidden");
+          triggerGameOver();
+        }, 1600);
+      } else {
+        setTimeout(function () {
+          if (floorIndex < 5) {
+            renderModal(floorsData[floorIndex], floorsData[floorIndex].question, null);
+          } else {
+            renderModal(floorsData[5], floorsData[5].shieldQuestions[shieldStep], shieldStep);
+          }
+        }, 1800);
+      }
+    }
+  }
+
+  function proceedAfterCorrect() {
+    if (floorIndex < 5) {
+      // Andares 1–5: o chefe já foi derrotado; agora o jogador
+      // retorna ao mapa e pode procurar o portal.
+      closeModalAndResume();
+      return;
+    }
+
+    // Andar 6: cada camada do escudo só é removida ao prosseguir.
+    if (shieldStep >= 4) {
+      // A quinta questão já foi resolvida e o escudo já foi destruído.
+      // Agora o botão "Prosseguir" deve finalmente fechar o combate.
+      closeModalAndResume();
+      return;
+    }
+
+    shieldStep++;
+    renderModal(floorsData[5], floorsData[5].shieldQuestions[shieldStep], shieldStep);
+  }
+  function showFeedback(isCorrect, title, text, showContinue) {
+    el.feedback.className = "show " + (isCorrect ? "correct" : "wrong");
+    el.feedback.innerHTML = '<span class="fb-title">' + title + "</span>" + text;
+
+    if (showContinue) {
+      const continueBtn = document.createElement("button");
+      continueBtn.type = "button";
+      continueBtn.className = "feedback-continue";
+      continueBtn.textContent = "Prosseguir";
+      continueBtn.addEventListener("click", proceedAfterCorrect);
+      el.feedback.appendChild(continueBtn);
+    }
+  }
+
+  function closeModalAndResume() {
+    el.modalOverlay.classList.add("hidden");
+    state = "playing";
+  }
+
+  function triggerGameOver() {
+    state = "gameover";
+    el.gameOverScreen.classList.remove("hidden");
+  }
+
+  // ==========================================================
+  // BOTÕES DE TELA
+  // ==========================================================
+  el.startBtn.addEventListener("click", initGame);
+  el.retryBtn.addEventListener("click", initGame);
+  el.playAgainBtn.addEventListener("click", initGame);
+
+  el.creditsBtn.addEventListener("click", function () {
+    el.victoryScreen.classList.add("hidden");
+    el.creditsScreen.classList.remove("hidden");
+  });
+
+  el.backToVictoryBtn.addEventListener("click", function () {
+    el.creditsScreen.classList.add("hidden");
+    el.victoryScreen.classList.remove("hidden");
+  });
+
+  // ==========================================================
+  // DESENHO — pixel art no buffer + composição/animações no canvas final
+  // ==========================================================
+  function drawScene(t) {
+    bctx.clearRect(0, 0, BUF_W, BUF_H);
+    const pal = currentPalette;
+
+    // chão / paredes em grade pixelada, coloridas conforme o andar,
+    // com um brilho de borda que "respira" em cores neon dinâmicas
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        const isWall = !maze || maze[r][c] === 1;
+        const x = c * TILE, y = r * TILE;
+        if (isWall) {
+          bctx.fillStyle = pal.wall;
+          bctx.fillRect(x, y, TILE, TILE);
+          const shimmer = 0.5 + 0.5 * Math.sin(t * 1.3 + (r + c) * 0.35);
+          bctx.fillStyle = mixColor(pal.edgeA, pal.edgeB, shimmer);
+          bctx.globalAlpha = 0.35;
+          bctx.fillRect(x, y, TILE, 3);
+          bctx.globalAlpha = 1;
+          bctx.fillStyle = "rgba(0,0,0,0.35)";
+          bctx.fillRect(x, y + TILE - 3, TILE, 3);
+          bctx.strokeStyle = pal.wallTop;
+          bctx.globalAlpha = 0.25;
+          bctx.strokeRect(x + 0.5, y + 0.5, TILE - 1, TILE - 1);
+          bctx.globalAlpha = 1;
+        } else {
+          bctx.fillStyle = (r + c) % 2 === 0 ? pal.floorA : pal.floorB;
+          bctx.fillRect(x, y, TILE, TILE);
+        }
+      }
+    }
+
+    if (!maze) return;
+
+    // Obstáculos coloridos destrutíveis.
+    // Eles começam íntegros e ganham rachaduras a cada colisão.
+    for (let i = 0; i < obstacleCells.length; i++) {
+      const o = obstacleCells[i];
+      if (o.broken) continue;
+      const x = o.col * TILE, y = o.row * TILE;
+      const floor = floorsData[floorIndex];
+      const pulseO = 0.5 + 0.5 * Math.sin(t * 3 + i);
+      bctx.save();
+      bctx.shadowColor = floor.color;
+      bctx.shadowBlur = 3 + pulseO * 4;
+      bctx.fillStyle = mixColor(floor.color, "#080312", 0.28);
+      bctx.fillRect(x + 2, y + 2, TILE - 4, TILE - 4);
+      bctx.shadowBlur = 0;
+      bctx.fillStyle = floor.color;
+      bctx.globalAlpha = 0.8;
+      bctx.fillRect(x + 4, y + 4, TILE - 8, 3);
+      bctx.globalAlpha = 1;
+
+      // Rachaduras progressivas: 1ª, 2ª e 3ª pancada.
+      if (o.hits >= 1) {
+        bctx.strokeStyle = "#f8fafc";
+        bctx.globalAlpha = 0.78;
+        bctx.lineWidth = 1.2;
+        bctx.beginPath();
+        bctx.moveTo(x + 10, y + 4);
+        bctx.lineTo(x + 8, y + 9);
+        bctx.lineTo(x + 11, y + 13);
+        bctx.lineTo(x + 7, y + 18);
+        bctx.stroke();
+      }
+      if (o.hits >= 2) {
+        bctx.beginPath();
+        bctx.moveTo(x + 10, y + 9);
+        bctx.lineTo(x + 15, y + 7);
+        bctx.moveTo(x + 11, y + 13);
+        bctx.lineTo(x + 16, y + 17);
+        bctx.stroke();
+      }
+      if (o.hits >= 3) {
+        bctx.globalAlpha = 0.9;
+        bctx.beginPath();
+        bctx.moveTo(x + 5, y + 14);
+        bctx.lineTo(x + 9, y + 11);
+        bctx.lineTo(x + 14, y + 14);
+        bctx.lineTo(x + 17, y + 11);
+        bctx.stroke();
+      }
+      bctx.restore();
+    }
+
+    // Câmara de recuperação: a única recompensa do jogo.
+    // Fica visível em todos os andares até o jogador recuperar 1 coração.
+    if (healingCell && !healingUsedThisFloor) {
+      const hx = healingCell.col * TILE, hy = healingCell.row * TILE;
+      const pulseH = 0.5 + 0.5 * Math.sin(t * 3.2);
+      bctx.save();
+      bctx.shadowColor = "#4ade80";
+      bctx.shadowBlur = 4 + pulseH * 5;
+      bctx.fillStyle = "#14532d";
+      bctx.fillRect(hx + 3, hy + 3, TILE - 6, TILE - 6);
+      bctx.shadowBlur = 0;
+      bctx.fillStyle = "#4ade80";
+      bctx.globalAlpha = 0.9;
+      bctx.fillRect(hx + 8, hy + 4, 4, 12);
+      bctx.fillRect(hx + 4, hy + 8, 12, 4);
+      bctx.globalAlpha = 0.65;
+      bctx.fillRect(hx + 5, hy + 5, 2, 2);
+      bctx.fillRect(hx + 13, hy + 13, 2, 2);
+      bctx.restore();
+    }
+
+    // Portal dark fantasy: surge somente depois que o chefe é derrotado.
+    // No sexto andar, ele funciona como o portal final para a vitória.
+    // O visual é desenhado em pixel art: arco de pedra, runas, vórtice e
+    // faíscas mágicas, sem alterar a célula lógica do mapa.
+    if (bossDefeatedThisFloor && stairsCell) {
+      const sx = stairsCell.col * TILE, sy = stairsCell.row * TILE;
+      const pulseP = 0.5 + 0.5 * Math.sin(t * 3.6);
+      const spin = t * 2.4;
+      bctx.save();
+
+      // aura externa
+      bctx.shadowColor = "#8b5cf6";
+      bctx.shadowBlur = 5 + pulseP * 9;
+      bctx.fillStyle = "rgba(20, 8, 42, 0.9)";
+      bctx.fillRect(sx + 1, sy + 1, TILE - 2, TILE - 2);
+      bctx.shadowBlur = 0;
+
+      // base escura / portal de pedra
+      bctx.fillStyle = "#170d29";
+      bctx.fillRect(sx + 2, sy + 4, TILE - 4, TILE - 4);
+      bctx.fillStyle = "#2b174f";
+      bctx.fillRect(sx + 3, sy + 3, TILE - 6, 3);
+      bctx.fillRect(sx + 3, sy + 3, 3, TILE - 6);
+      bctx.fillRect(sx + TILE - 6, sy + 3, 3, TILE - 6);
+
+      // arco pontiagudo, em três camadas, para dar aparência de portal antigo
+      bctx.strokeStyle = "#6d4aa2";
+      bctx.lineWidth = 1;
+      bctx.beginPath();
+      bctx.moveTo(sx + 5, sy + 17);
+      bctx.lineTo(sx + 5, sy + 9);
+      bctx.lineTo(sx + 8, sy + 5);
+      bctx.lineTo(sx + 10, sy + 3);
+      bctx.lineTo(sx + 12, sy + 5);
+      bctx.lineTo(sx + 15, sy + 9);
+      bctx.lineTo(sx + 15, sy + 17);
+      bctx.stroke();
+      bctx.strokeStyle = "#b794f4";
+      bctx.globalAlpha = 0.75 + pulseP * 0.2;
+      bctx.beginPath();
+      bctx.moveTo(sx + 7, sy + 17);
+      bctx.lineTo(sx + 7, sy + 10);
+      bctx.lineTo(sx + 10, sy + 6);
+      bctx.lineTo(sx + 13, sy + 10);
+      bctx.lineTo(sx + 13, sy + 17);
+      bctx.stroke();
+      bctx.globalAlpha = 1;
+
+      // vazio do portal
+      bctx.fillStyle = "#05020b";
+      bctx.beginPath();
+      bctx.moveTo(sx + 8, sy + 17);
+      bctx.lineTo(sx + 8, sy + 11);
+      bctx.lineTo(sx + 10, sy + 7);
+      bctx.lineTo(sx + 12, sy + 11);
+      bctx.lineTo(sx + 12, sy + 17);
+      bctx.closePath();
+      bctx.fill();
+
+      // vórtice interno com duas espirais concêntricas
+      const cx = sx + 10, cy = sy + 12;
+      bctx.globalCompositeOperation = "lighter";
+      bctx.strokeStyle = "#7c3aed";
+      bctx.lineWidth = 1.4;
+      bctx.globalAlpha = 0.7;
+      bctx.beginPath();
+      for (let a = 0; a <= Math.PI * 2.2; a += 0.25) {
+        const rr = 0.6 + a * 0.52;
+        const x = cx + Math.cos(a + spin) * rr * 0.68;
+        const y = cy + Math.sin(a + spin) * rr * 0.9;
+        if (a === 0) bctx.moveTo(x, y); else bctx.lineTo(x, y);
+      }
+      bctx.stroke();
+      bctx.strokeStyle = "#d8b4fe";
+      bctx.lineWidth = 0.8;
+      bctx.globalAlpha = 0.85;
+      bctx.beginPath();
+      for (let a = 0; a <= Math.PI * 1.8; a += 0.3) {
+        const rr = 0.5 + a * 0.36;
+        const x = cx + Math.cos(-a - spin * 1.35) * rr * 0.55;
+        const y = cy + Math.sin(-a - spin * 1.35) * rr * 0.75;
+        if (a === 0) bctx.moveTo(x, y); else bctx.lineTo(x, y);
+      }
+      bctx.stroke();
+
+      // runas antigas nas colunas do arco
+      bctx.globalAlpha = 0.8 + pulseP * 0.15;
+      bctx.fillStyle = "#c4b5fd";
+      bctx.fillRect(sx + 4, sy + 7, 1, 2);
+      bctx.fillRect(sx + 15, sy + 7, 1, 2);
+      bctx.fillRect(sx + 4, sy + 12, 1, 2);
+      bctx.fillRect(sx + 15, sy + 12, 1, 2);
+
+      // pequenas faíscas que orbitam o portal
+      const sparks = [
+        [Math.cos(spin) * 8, Math.sin(spin) * 7],
+        [Math.cos(spin + 2.1) * 7, Math.sin(spin + 2.1) * 8],
+        [Math.cos(spin + 4.2) * 8, Math.sin(spin + 4.2) * 6]
+      ];
+      bctx.fillStyle = "#f5d48a";
+      for (let i = 0; i < sparks.length; i++) {
+        const sxp = Math.round(cx + sparks[i][0]);
+        const syp = Math.round(cy + sparks[i][1]);
+        bctx.globalAlpha = 0.45 + 0.45 * Math.sin(t * 5 + i);
+        if (sxp >= sx && sxp < sx + TILE && syp >= sy && syp < sy + TILE) {
+          bctx.fillRect(sxp, syp, 1, 1);
+        }
+      }
+      bctx.globalAlpha = 1;
+      bctx.globalCompositeOperation = "source-over";
+
+      // brilho final na borda superior do arco
+      bctx.shadowColor = "#a855f7";
+      bctx.shadowBlur = 3 + pulseP * 5;
+      bctx.strokeStyle = "#f5d48a";
+      bctx.lineWidth = 1;
+      bctx.beginPath();
+      bctx.moveTo(sx + 8, sy + 4);
+      bctx.lineTo(sx + 10, sy + 2);
+      bctx.lineTo(sx + 12, sy + 4);
+      bctx.stroke();
+
+      bctx.restore();
+    }
+
+    // chefe (bloco pixelado com glifo temático e respiração idle)
+    if (!bossDefeatedThisFloor) {
+      const floor = floorsData[floorIndex];
+      const breathe = Math.sin(t * 2.4) * 1;
+      const bx = bossCell.col * TILE, by = bossCell.row * TILE + breathe;
+      bctx.save();
+      bctx.fillStyle = floor.color;
+      bctx.shadowColor = floor.color;
+      bctx.shadowBlur = 5;
+      bctx.fillRect(Math.round(bx + 3), Math.round(by + 3), TILE - 6, TILE - 6);
+      bctx.shadowBlur = 0;
+      bctx.fillStyle = "rgba(0,0,0,0.25)";
+      bctx.fillRect(Math.round(bx + 3), Math.round(by + TILE - 8), TILE - 6, 5);
+      bctx.fillStyle = "#14001a";
+      bctx.font = "bold 10px monospace";
+      bctx.textAlign = "center";
+      bctx.textBaseline = "middle";
+      bctx.fillText(floor.glyph || "!", Math.round(bx + TILE / 2), Math.round(by + TILE / 2));
+      bctx.restore();
+    }
+
+    // jogador — sprite pixelado com 4 direções (baixo/cima/esquerda/direita)
+    const bob = player.walking ? Math.sin(player.walkT * 16) * 1.5 : 0;
+    const px = player.vCol * TILE, py = player.vRow * TILE + bob;
+    bctx.save();
+    bctx.translate(Math.round(px + TILE / 2), Math.round(py + TILE / 2));
+    if (player.facingDir === "left" || player.facingDir === "right") {
+      bctx.scale(player.facing, 1);
+    }
+    bctx.fillStyle = "#33f7ff";
+    bctx.shadowColor = "#33f7ff";
+    bctx.shadowBlur = 5;
+    bctx.fillRect(-TILE / 2 + 3, -TILE / 2 + 3, TILE - 6, TILE - 6);
+    bctx.shadowBlur = 0;
+    bctx.fillStyle = "rgba(0,0,0,0.25)";
+    bctx.fillRect(-TILE / 2 + 3, TILE / 2 - 6, TILE - 6, 3);
+    bctx.fillStyle = "#f3fdff";
+    if (player.facingDir === "down") {
+      // rosto de frente: dois olhos na parte inferior da cabeça
+      bctx.fillRect(-4, -1, 3, 3);
+      bctx.fillRect(2, -1, 3, 3);
+    } else if (player.facingDir === "up") {
+      // de costas: sem olhos visíveis, só uma "touca" clara no topo
+      bctx.globalAlpha = 0.8;
+      bctx.fillRect(-TILE / 2 + 5, -TILE / 2 + 4, TILE - 10, 3);
+      bctx.globalAlpha = 1;
+    } else {
+      // perfil esquerdo/direito: um único olho voltado para a frente
+      bctx.fillRect(2, -1, 3, 3);
+    }
+    bctx.restore();
+
+    // partículas
+    for (let i = 0; i < particles.length; i++) {
+      const p = particles[i];
+      bctx.fillStyle = p.color;
+      bctx.globalAlpha = Math.max(p.life, 0);
+      bctx.fillRect(Math.round(p.x - 1), Math.round(p.y - 1), 2, 2);
+    }
+    bctx.globalAlpha = 1;
+  }
+
+  function composite() {
+    const shakeX = shakeMag ? (Math.random() - 0.5) * shakeMag : 0;
+    const shakeY = shakeMag ? (Math.random() - 0.5) * shakeMag : 0;
+
+    ctx.clearRect(0, 0, OUT_W, OUT_H);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(buffer, 0, 0, BUF_W, BUF_H, shakeX * 2, shakeY * 2, OUT_W, OUT_H);
+
+    if (flashAlpha > 0.002 && flashColor) {
+      ctx.globalAlpha = flashAlpha;
+      ctx.fillStyle = flashColor;
+      ctx.fillRect(0, 0, OUT_W, OUT_H);
+      ctx.globalAlpha = 1;
+    }
+
+    if (transition.active) {
+      const p = Math.min(transition.t / transition.duration, 1);
+      const alpha = transition.phase === "out" ? p : 1 - p;
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = "#020103";
+      ctx.fillRect(0, 0, OUT_W, OUT_H);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // ==========================================================
+  // LOOP PRINCIPAL (requestAnimationFrame) — dá vida às animações
+  // ==========================================================
+  let lastTime = performance.now();
+  function tick(now) {
+    const dt = Math.min((now - lastTime) / 1000, 0.05);
+    lastTime = now;
+    timeAcc += dt;
+
+    // interpolação suave da posição visual do jogador em direção à lógica
+    const lerp = 1 - Math.pow(0.001, dt * 10);
+    player.vRow += (player.row - player.vRow) * lerp;
+    player.vCol += (player.col - player.vCol) * lerp;
+    const dist = Math.abs(player.row - player.vRow) + Math.abs(player.col - player.vCol);
+    if (dist < 0.02) {
+      player.vRow = player.row; player.vCol = player.col;
+      player.walking = false; player.walkT = 0;
+    } else {
+      player.walkT += dt;
+    }
+
+    // tremor de tela decai
+    if (shakeMag > 0.01) shakeMag *= 0.85; else shakeMag = 0;
+
+    // clarão colorido decai
+    if (flashAlpha > 0) flashAlpha = Math.max(0, flashAlpha - dt * 2.2);
+
+    // partículas
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.x += p.vx; p.y += p.vy;
+      p.vx *= 0.94; p.vy *= 0.94;
+      p.life -= dt * 1.6;
+      if (p.life <= 0) particles.splice(i, 1);
+    }
+
+    // transição entre andares
+    if (transition.active) {
+      transition.t += dt * 1000;
+      if (transition.t >= transition.duration) {
+        if (transition.phase === "out") {
+          if (transition.pending) transition.pending();
+          transition.phase = "in";
+          transition.t = 0;
+        } else {
+          transition.active = false;
+          transition.pending = null;
+        }
+      }
+    }
+
+    drawScene(timeAcc);
+    composite();
+
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
