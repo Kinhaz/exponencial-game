@@ -1058,6 +1058,7 @@
     el.creditsScreen.classList.add("hidden");
     el.modalOverlay.classList.add("hidden");
     particles.length = 0;
+    ensureMusicAudio();
     loadFloor(0, true);
     updateHUD();
   }
@@ -1141,6 +1142,425 @@
     }
   }
 
+
+  // ==========================================================
+  // TRILHA SONORA MEDIEVAL CONTÍNUA
+  // A música calma permanece em um ciclo eterno durante toda a
+  // aventura. Nas perguntas comuns, apenas reduzimos seu volume.
+  // Ao chegar ao Mago Supremo, a música calma é MUTADA e uma
+  // trilha dark fantasy independente assume. Ao derrotá-lo, a
+  // trilha sombria é mutada e a música calma é DESMUTADA.
+  // Assim, a música calma nunca precisa reiniciar ou voltar para
+  // um trecho estranho depois da batalha.
+  // Não existe botão de ON/OFF: o som faz parte da experiência.
+  // ==========================================================
+  let musicAudioCtx = null;
+  let musicMaster = null;
+  let calmGain = null;
+  let bossGain = null;
+  let calmTimer = null;
+  let bossTimer = null;
+  let musicMode = "calm";
+  let musicStep = 0;
+  let bossMusicStep = 0;
+  let musicTransitionToken = 0;
+
+  // Esta é a mesma melodia usada na tela final de vitória:
+  // ela agora é a identidade musical de toda a aventura.
+  const calmMedievalMusic = {
+    tempo: 74,
+    wave: "triangle",
+    volume: 0.060,
+    notes: [261.63, 293.66, 329.63, 392, 329.63, 293.66, 261.63, 220]
+  };
+
+  // Única exceção: o Mago Supremo recebe uma camada dark fantasy,
+  // mais grave, lenta e macabra.
+  const supremeMageMusic = {
+    tempo: 52,
+    wave: "sawtooth",
+    volume: 0.052,
+    notes: [73.42, 82.41, 98, 110, 98, 87.31, 73.42, 65.41]
+  };
+
+  const MUSIC_NORMAL_GAIN = 0.72;
+  const MUSIC_QUESTION_GAIN = 0.17;
+  const MUSIC_BOSS_GAIN = 0.82;
+
+  function ensureMusicAudio() {
+    if (musicAudioCtx) {
+      if (musicAudioCtx.state === "suspended") musicAudioCtx.resume();
+      return true;
+    }
+
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return false;
+
+    musicAudioCtx = new AudioCtx();
+    musicMaster = musicAudioCtx.createGain();
+    musicMaster.gain.value = 0.72;
+    musicMaster.connect(musicAudioCtx.destination);
+
+    // Canais independentes: a música calma pode continuar tocando
+    // silenciosamente por baixo da batalha e voltar sem reiniciar.
+    calmGain = musicAudioCtx.createGain();
+    bossGain = musicAudioCtx.createGain();
+    calmGain.gain.value = MUSIC_NORMAL_GAIN;
+    bossGain.gain.value = 0.0001;
+    calmGain.connect(musicMaster);
+    bossGain.connect(musicMaster);
+
+    if (musicAudioCtx.state === "suspended") musicAudioCtx.resume();
+    return true;
+  }
+
+  function medievalNote(freq, duration, volume, type, when, destination) {
+    if (!musicAudioCtx || !destination) return;
+
+    const osc = musicAudioCtx.createOscillator();
+    const gain = musicAudioCtx.createGain();
+    const filter = musicAudioCtx.createBiquadFilter();
+
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, when);
+
+    filter.type = "lowpass";
+    filter.frequency.setValueAtTime(type === "sawtooth" ? 620 : 1200, when);
+    filter.Q.value = type === "sawtooth" ? 1.1 : 0.7;
+
+    gain.gain.setValueAtTime(0.0001, when);
+    gain.gain.exponentialRampToValueAtTime(Math.max(volume, 0.001), when + 0.035);
+    gain.gain.exponentialRampToValueAtTime(0.0001, when + duration);
+
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(destination);
+
+    osc.start(when);
+    osc.stop(when + duration + 0.05);
+  }
+
+  function medievalDrone(freq, when, duration, volume, destination) {
+    if (!musicAudioCtx || !destination) return;
+
+    const osc = musicAudioCtx.createOscillator();
+    const gain = musicAudioCtx.createGain();
+    const filter = musicAudioCtx.createBiquadFilter();
+
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(freq, when);
+
+    filter.type = "lowpass";
+    filter.frequency.setValueAtTime(420, when);
+    filter.Q.value = 0.6;
+
+    gain.gain.setValueAtTime(0.0001, when);
+    gain.gain.exponentialRampToValueAtTime(Math.max(volume, 0.001), when + 0.12);
+    gain.gain.exponentialRampToValueAtTime(0.0001, when + duration);
+
+    osc.connect(filter);
+    filter.connect(gain);
+
+    osc.start(when);
+    osc.stop(when + duration + 0.06);
+  }
+
+  // A música calma tem seu próprio relógio e NUNCA é reiniciada
+  // quando o jogador entra no Mago Supremo.
+  function scheduleCalmMusicStep() {
+    if (!musicAudioCtx || !calmGain) return;
+
+    const track = calmMedievalMusic;
+    const beat = 60 / track.tempo;
+    const now = musicAudioCtx.currentTime + 0.02;
+    const note = track.notes[musicStep % track.notes.length];
+
+    medievalNote(note, beat * 0.82, track.volume, track.wave, now, calmGain);
+
+    if (musicStep % 4 === 0) {
+      medievalDrone(note / 2, now, beat * 3.4, track.volume * 0.42, calmGain);
+    }
+
+    musicStep++;
+    calmTimer = setTimeout(scheduleCalmMusicStep, beat * 1000);
+  }
+
+  function scheduleBossMusicStep() {
+    if (!musicAudioCtx || !bossGain) return;
+
+    const track = supremeMageMusic;
+    const beat = 60 / track.tempo;
+    const now = musicAudioCtx.currentTime + 0.02;
+    const note = track.notes[bossMusicStep % track.notes.length];
+
+    medievalNote(note, beat * 0.86, track.volume, track.wave, now, bossGain);
+
+    if (bossMusicStep % 2 === 0) {
+      medievalDrone(note / 2, now, beat * 1.8, track.volume * 0.70, bossGain);
+    }
+
+    if (bossMusicStep % 4 === 3) {
+      medievalNote(note * 0.5, beat * 1.15, track.volume * 0.45, "sine", now + beat * 0.12, bossGain);
+    }
+
+    bossMusicStep++;
+    bossTimer = setTimeout(scheduleBossMusicStep, beat * 1000);
+  }
+
+  function stopBossMusic() {
+    if (bossTimer) {
+      clearTimeout(bossTimer);
+      bossTimer = null;
+    }
+  }
+
+  function getMusicMode() {
+    return state === "shield" ? "supreme" : "calm";
+  }
+
+  function syncMusic() {
+    ensureMusicAudio();
+    if (!musicAudioCtx || !musicMaster || !calmGain || !bossGain) return;
+
+    const nextMode = getMusicMode();
+    const now = musicAudioCtx.currentTime;
+
+    // Garante que a trilha calma sempre exista em segundo plano.
+    if (!calmTimer) scheduleCalmMusicStep();
+
+    if (nextMode === "supreme") {
+      musicMode = "supreme";
+
+      // Mago Supremo: música calma fica completamente mutada.
+      calmGain.gain.cancelScheduledValues(now);
+      calmGain.gain.setTargetAtTime(0.0001, now, 0.08);
+
+      // Inicia a trilha macabra apenas uma vez por batalha.
+      if (!bossTimer) {
+        bossMusicStep = 0;
+        scheduleBossMusicStep();
+      }
+
+      bossGain.gain.cancelScheduledValues(now);
+      bossGain.gain.setTargetAtTime(MUSIC_BOSS_GAIN, now, 0.12);
+      return;
+    }
+
+    // Fora do Mago Supremo: a trilha sombria é mutada e a música
+    // calma volta exatamente do ponto em que continuou tocando.
+    musicMode = "calm";
+    stopBossMusic();
+
+    bossGain.gain.cancelScheduledValues(now);
+    bossGain.gain.setTargetAtTime(0.0001, now, 0.10);
+
+    // Perguntas comuns: mesma música, apenas mais baixa.
+    const target = state === "question" ? MUSIC_QUESTION_GAIN : MUSIC_NORMAL_GAIN;
+    calmGain.gain.cancelScheduledValues(now);
+    calmGain.gain.setTargetAtTime(target, now, 0.10);
+  }
+
+  // Desbloqueia o áudio apenas após uma interação do jogador.
+  // Não existe controle de ON/OFF: a trilha é parte fixa da experiência.
+  document.addEventListener("pointerdown", function unlockMusic() {
+    ensureMusicAudio();
+    document.removeEventListener("pointerdown", unlockMusic);
+  }, { once: true });
+
+  // ==========================================================
+  // EFEITO SONORO DO JOGADOR
+  // Som curto de passos medievais, gerado localmente pelo Web Audio.
+  // Não usa arquivos externos.
+  // ==========================================================
+  let sfxAudioCtx = null;
+  let stepGain = null;
+  let stepToggle = true;
+
+  // Efeitos sonoros da experiência: impactos, rachaduras, recompensa, portal,
+  // respostas e estados finais. Todos são sintetizados localmente pelo Web Audio.
+  let sfxMaster = null;
+
+  function ensureSfxAudio() {
+    if (sfxAudioCtx) {
+      if (sfxAudioCtx.state === "suspended") sfxAudioCtx.resume();
+      return;
+    }
+
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+
+    sfxAudioCtx = new AudioCtx();
+    stepGain = sfxAudioCtx.createGain();
+    stepGain.gain.value = 0.24;
+    stepGain.connect(sfxAudioCtx.destination);
+
+    sfxMaster = sfxAudioCtx.createGain();
+    sfxMaster.gain.value = 0.95;
+    sfxMaster.connect(sfxAudioCtx.destination);
+
+    if (sfxAudioCtx.state === "suspended") sfxAudioCtx.resume();
+  }
+
+  function playFootstep() {
+    ensureSfxAudio();
+    if (!sfxAudioCtx || !stepGain) return;
+
+    const now = sfxAudioCtx.currentTime;
+    const osc = sfxAudioCtx.createOscillator();
+    const gain = sfxAudioCtx.createGain();
+    const filter = sfxAudioCtx.createBiquadFilter();
+
+    // Alterna levemente os dois pés para o som não ficar mecânico.
+    const isLeft = stepToggle;
+    stepToggle = !stepToggle;
+
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(isLeft ? 105 : 92, now);
+    osc.frequency.exponentialRampToValueAtTime(isLeft ? 58 : 52, now + 0.075);
+
+    filter.type = "lowpass";
+    filter.frequency.setValueAtTime(900, now);
+    filter.frequency.exponentialRampToValueAtTime(260, now + 0.08);
+    filter.Q.value = 1.2;
+
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.16, now + 0.008);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.085);
+
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(stepGain);
+
+    osc.start(now);
+    osc.stop(now + 0.09);
+  }
+
+  function sfxTone(freq, duration, volume, type, startOffset, endFreq) {
+    ensureSfxAudio();
+    if (!sfxAudioCtx || !sfxMaster) return;
+
+    const now = sfxAudioCtx.currentTime + (startOffset || 0);
+    const osc = sfxAudioCtx.createOscillator();
+    const gain = sfxAudioCtx.createGain();
+    const filter = sfxAudioCtx.createBiquadFilter();
+
+    osc.type = type || "triangle";
+    osc.frequency.setValueAtTime(Math.max(freq, 20), now);
+    if (endFreq) osc.frequency.exponentialRampToValueAtTime(Math.max(endFreq, 20), now + duration);
+
+    filter.type = "lowpass";
+    filter.frequency.setValueAtTime(type === "sawtooth" ? 1200 : 1800, now);
+    filter.Q.value = 0.7;
+
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(Math.max(volume, 0.001), now + Math.min(0.025, duration * 0.25));
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(sfxMaster);
+    osc.start(now);
+    osc.stop(now + duration + 0.03);
+  }
+
+  function sfxNoise(duration, volume, startOffset, filterFreq) {
+    ensureSfxAudio();
+    if (!sfxAudioCtx || !sfxMaster) return;
+
+    const now = sfxAudioCtx.currentTime + (startOffset || 0);
+    const bufferSize = Math.floor(sfxAudioCtx.sampleRate * duration);
+    const buffer = sfxAudioCtx.createBuffer(1, bufferSize, sfxAudioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      const decay = 1 - i / bufferSize;
+      data[i] = (Math.random() * 2 - 1) * decay;
+    }
+
+    const source = sfxAudioCtx.createBufferSource();
+    const gain = sfxAudioCtx.createGain();
+    const filter = sfxAudioCtx.createBiquadFilter();
+    source.buffer = buffer;
+    filter.type = "bandpass";
+    filter.frequency.value = filterFreq || 900;
+    filter.Q.value = 0.8;
+    gain.gain.setValueAtTime(Math.max(volume, 0.001), now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(sfxMaster);
+    source.start(now);
+  }
+
+  function playObstacleCrack(hitCount) {
+    const n = hitCount || 1;
+    sfxNoise(0.055 + n * 0.012, 0.10 + n * 0.025, 0, 650 + n * 120);
+    sfxTone(150 - n * 12, 0.07, 0.055 + n * 0.012, "square", 0.005, 75 - n * 5);
+  }
+
+  function playObstacleBreak() {
+    sfxNoise(0.20, 0.18, 0, 480);
+    sfxTone(180, 0.16, 0.10, "triangle", 0.00, 62);
+    sfxTone(330, 0.12, 0.075, "triangle", 0.045, 110);
+    sfxTone(520, 0.09, 0.045, "sine", 0.075, 180);
+  }
+
+  function playHealing() {
+    sfxTone(392, 0.18, 0.075, "sine", 0.00, 520);
+    sfxTone(523.25, 0.22, 0.085, "sine", 0.10, 659.25);
+    sfxTone(783.99, 0.30, 0.065, "triangle", 0.20, 880);
+  }
+
+  function playPortal() {
+    sfxTone(220, 0.48, 0.07, "sine", 0.00, 440);
+    sfxTone(293.66, 0.42, 0.055, "sine", 0.08, 587.33);
+    sfxTone(440, 0.36, 0.045, "triangle", 0.16, 880);
+    sfxNoise(0.38, 0.055, 0.00, 720);
+  }
+
+  function playQuestionOpen() {
+    sfxTone(392, 0.20, 0.055, "triangle", 0.00, 370);
+    sfxTone(523.25, 0.28, 0.065, "sine", 0.11, 493.88);
+  }
+
+  function playCorrect() {
+    sfxTone(523.25, 0.12, 0.07, "triangle", 0.00, 587.33);
+    sfxTone(659.25, 0.16, 0.075, "triangle", 0.09, 783.99);
+    sfxTone(783.99, 0.24, 0.065, "sine", 0.19, 1046.5);
+  }
+
+  function playWrong() {
+    sfxTone(155, 0.16, 0.08, "sawtooth", 0.00, 95);
+    sfxTone(116.54, 0.22, 0.055, "triangle", 0.08, 82.41);
+  }
+
+  function playBossImpact() {
+    sfxNoise(0.18, 0.13, 0, 260);
+    sfxTone(98, 0.25, 0.085, "sawtooth", 0.00, 46.25);
+    sfxTone(196, 0.14, 0.055, "triangle", 0.04, 82.41);
+  }
+
+  function playVictory() {
+    sfxTone(261.63, 0.18, 0.07, "triangle", 0.00, 293.66);
+    sfxTone(329.63, 0.18, 0.075, "triangle", 0.10, 392);
+    sfxTone(523.25, 0.35, 0.085, "sine", 0.22, 659.25);
+  }
+
+  function playGameOver() {
+    sfxTone(196, 0.28, 0.07, "sine", 0.00, 130.81);
+    sfxTone(146.83, 0.34, 0.06, "sine", 0.18, 87.31);
+  }
+
+  function playUiClick() {
+    sfxTone(330, 0.055, 0.035, "square", 0, 300);
+  }
+
+  // O navegador bloqueia áudio antes da primeira interação do usuário.
+  // Este evento libera o áudio sem tocar nenhum som automaticamente.
+  document.addEventListener("pointerdown", function unlockSfx() {
+    ensureSfxAudio();
+    document.removeEventListener("pointerdown", unlockSfx);
+  }, { once: true });
+
   // ==========================================================
   // MOVIMENTAÇÃO
   // ==========================================================
@@ -1154,6 +1574,7 @@
 
   function breakObstacle(obstacle) {
     obstacle.broken = true;
+    playObstacleBreak();
     triggerShake(5);
     triggerFlash("#f8fafc", 0.22);
     const floor = floorsData[floorIndex];
@@ -1166,6 +1587,7 @@
 
   function hitObstacle(obstacle) {
     obstacle.hits = Math.min(obstacle.maxHits, obstacle.hits + 1);
+    playObstacleCrack(obstacle.hits);
     triggerShake(2 + obstacle.hits);
     triggerFlash("#ffffff", 0.08 + obstacle.hits * 0.03);
     const floor = floorsData[floorIndex];
@@ -1214,6 +1636,7 @@
     if (healingCell && nr === healingCell.row && nc === healingCell.col && !healingUsedThisFloor) {
       if (hp < 3) {
         hp = Math.min(3, hp + 1);
+        playHealing();
         updateHUD();
         triggerFlash("#4ade80", 0.28);
         spawnBurst(healingCell.row, healingCell.col, "#86efac", 18);
@@ -1223,9 +1646,13 @@
     player.row = nr;
     player.col = nc;
     player.walking = true;
+
+    // Passo sonoro somente quando o jogador realmente avança pelo mapa.
+    playFootstep();
   }
 
   function onReachStairs() {
+    playPortal();
     triggerFlash("#f5d48a", 0.55);
     spawnBurst(stairsCell.row, stairsCell.col, "#f5d48a", 22);
     startTransition(function () {
@@ -1233,12 +1660,16 @@
         loadFloor(floorIndex + 1, true);
       } else {
         state = "victory";
+        playVictory();
         el.victoryScreen.classList.remove("hidden");
       }
     });
   }
 
   window.addEventListener("keydown", function (e) {
+    ensureSfxAudio();
+    ensureMusicAudio();
+
     switch (e.key) {
       case "ArrowUp":
       case "w":
@@ -1271,6 +1702,7 @@
   // COMBATE / PERGUNTAS
   // ==========================================================
   function openQuestion() {
+    playQuestionOpen();
     const floor = floorsData[floorIndex];
     document.documentElement.style.setProperty("--boss-accent", floor.accent);
 
@@ -1342,6 +1774,7 @@
     const correct = idx === question.correct;
 
     if (correct) {
+      playCorrect();
       btnEl.classList.add("correct-pick");
       el.modalBox.classList.add("pulse-correct");
 
@@ -1356,6 +1789,7 @@
       } else {
         // Quinta e última camada do Mago Supremo destruída:
         // libera imediatamente o portal final no mapa.
+        playBossImpact();
         bossDefeatedThisFloor = true;
         triggerFlash("#c084fc", 0.45);
         spawnBurst(bossCell.row, bossCell.col, floorsData[floorIndex].color, 36);
@@ -1364,6 +1798,7 @@
       // o portal já fica liberado para o jogador atravessar.
     } else {
       // Em caso de erro, não revelamos nem destacamos a alternativa correta.
+      playWrong();
       btnEl.classList.add("wrong-pick");
 
       hp--;
@@ -1428,6 +1863,8 @@
 
   function triggerGameOver() {
     state = "gameover";
+    playGameOver();
+    syncMusic();
     el.gameOverScreen.classList.remove("hidden");
   }
 
@@ -1446,6 +1883,12 @@
   el.backToVictoryBtn.addEventListener("click", function () {
     el.creditsScreen.classList.add("hidden");
     el.victoryScreen.classList.remove("hidden");
+  });
+
+  // Pequeno clique medieval nos botões da interface.
+  document.addEventListener("click", function (e) {
+    const button = e.target.closest("button.btn, button.feedback-continue");
+    if (button) playUiClick();
   });
 
   // ==========================================================
@@ -1819,6 +2262,7 @@
       }
     }
 
+    syncMusic();
     drawScene(timeAcc);
     composite();
 
