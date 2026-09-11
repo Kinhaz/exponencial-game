@@ -700,7 +700,7 @@
       <h1>O calor voltou<br>ao reino</h1>
       <p class="lore float d2">O escudo do Mago Supremo se despedaça em cristais de luz. Você atravessa o portal final, o Feitiço do Gelo Absoluto se desfaz, e o calor retorna às terras de Arithmia.</p>
       <p class="lore float d3">Você, aprendiz, é agora aclamado como o <strong>Grão-Mestre das Funções</strong> — aquele que decifrou o crescimento e o decaimento que regem toda a magia da torre.</p>
-      <button class="btn" id="playAgainBtn">Jogar Novamente</button>
+      <button class="btn" id="playAgainBtn">Voltar à Tela Inicial</button>
       <button class="btn secondary" id="creditsBtn">Sobre a Função Exponencial</button>
     </div>
 
@@ -1520,7 +1520,7 @@
 
     sfxAudioCtx = new AudioCtx();
     stepGain = sfxAudioCtx.createGain();
-    stepGain.gain.value = 0.34;
+    stepGain.gain.value = 0.24;
     stepGain.connect(sfxAudioCtx.destination);
 
     sfxMaster = sfxAudioCtx.createGain();
@@ -1535,60 +1535,33 @@
     if (!sfxAudioCtx || !stepGain) return;
 
     const now = sfxAudioCtx.currentTime;
+    const osc = sfxAudioCtx.createOscillator();
+    const gain = sfxAudioCtx.createGain();
+    const filter = sfxAudioCtx.createBiquadFilter();
+
+    // Alterna levemente os dois pés para o som não ficar mecânico.
     const isLeft = stepToggle;
     stepToggle = !stepToggle;
 
-    // Passo de pedra: um impacto grave + uma pequena "batida" seca,
-    // para lembrar uma bota medieval tocando piso de pedra.
-    const thump = sfxAudioCtx.createOscillator();
-    const thumpGain = sfxAudioCtx.createGain();
-    const thumpFilter = sfxAudioCtx.createBiquadFilter();
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(isLeft ? 105 : 92, now);
+    osc.frequency.exponentialRampToValueAtTime(isLeft ? 58 : 52, now + 0.075);
 
-    thump.type = "triangle";
-    thump.frequency.setValueAtTime(isLeft ? 92 : 84, now);
-    thump.frequency.exponentialRampToValueAtTime(isLeft ? 38 : 34, now + 0.15);
+    filter.type = "lowpass";
+    filter.frequency.setValueAtTime(900, now);
+    filter.frequency.exponentialRampToValueAtTime(260, now + 0.08);
+    filter.Q.value = 1.2;
 
-    thumpFilter.type = "lowpass";
-    thumpFilter.frequency.setValueAtTime(720, now);
-    thumpFilter.frequency.exponentialRampToValueAtTime(190, now + 0.15);
-    thumpFilter.Q.value = 1.35;
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.16, now + 0.008);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.085);
 
-    thumpGain.gain.setValueAtTime(0.0001, now);
-    thumpGain.gain.exponentialRampToValueAtTime(0.25, now + 0.008);
-    thumpGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.16);
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(stepGain);
 
-    thump.connect(thumpFilter);
-    thumpFilter.connect(thumpGain);
-    thumpGain.connect(stepGain);
-
-    // Ruído curtíssimo e filtrado = contato seco da sola com a pedra.
-    const buffer = sfxAudioCtx.createBuffer(1, Math.floor(sfxAudioCtx.sampleRate * 0.055), sfxAudioCtx.sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < data.length; i++) {
-      const decay = 1 - i / data.length;
-      data[i] = (Math.random() * 2 - 1) * decay;
-    }
-
-    const noise = sfxAudioCtx.createBufferSource();
-    const noiseGain = sfxAudioCtx.createGain();
-    const noiseFilter = sfxAudioCtx.createBiquadFilter();
-
-    noise.buffer = buffer;
-    noiseFilter.type = "bandpass";
-    noiseFilter.frequency.value = isLeft ? 760 : 680;
-    noiseFilter.Q.value = 0.75;
-
-    noiseGain.gain.setValueAtTime(0.0001, now);
-    noiseGain.gain.exponentialRampToValueAtTime(0.11, now + 0.004);
-    noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.065);
-
-    noise.connect(noiseFilter);
-    noiseFilter.connect(noiseGain);
-    noiseGain.connect(stepGain);
-
-    thump.start(now);
-    thump.stop(now + 0.14);
-    noise.start(now);
+    osc.start(now);
+    osc.stop(now + 0.09);
   }
 
   function sfxTone(freq, duration, volume, type, startOffset, endFreq) {
@@ -1802,6 +1775,7 @@
     player.row = nr;
     player.col = nc;
     player.walking = true;
+    player.jumpT = 0;
 
     // Passo sonoro somente quando o jogador realmente avança pelo mapa.
     playFootstep();
@@ -2067,7 +2041,13 @@
 
   el.startBtn.addEventListener("click", initGame);
   el.retryBtn.addEventListener("click", initGame);
-  el.playAgainBtn.addEventListener("click", initGame);
+  el.playAgainBtn.addEventListener("click", function () {
+  el.victoryScreen.classList.add("hidden");
+  el.creditsScreen.classList.add("hidden");
+  el.mainMenuScreen.classList.remove("hidden");
+  state = "menu";
+  syncMusic();
+});
 
   el.creditsBtn.addEventListener("click", function () {
     el.victoryScreen.classList.add("hidden");
@@ -2340,9 +2320,9 @@
     }
 
     // jogador — sprite pixelado com 4 direções (baixo/cima/esquerda/direita)
-    const jumpProgress = Math.min(player.jumpT / 0.36, 1);
+    const jumpProgress = Math.min(player.jumpT / 0.34, 1);
     const jumpArc = jumpProgress < 1 ? Math.sin(jumpProgress * Math.PI) : 0;
-    const bob = player.walking ? jumpArc * 9 : 0;
+    const bob = player.walking ? jumpArc * 7 : 0;
     const px = player.vCol * TILE, py = player.vRow * TILE - bob;
     bctx.save();
     bctx.translate(Math.round(px + TILE / 2), Math.round(py + TILE / 2));
@@ -2420,13 +2400,13 @@
     const lerp = 1 - Math.pow(0.001, dt * 10);
     player.vRow += (player.row - player.vRow) * lerp;
     player.vCol += (player.col - player.vCol) * lerp;
+    if (player.walking) player.jumpT += dt;
     const dist = Math.abs(player.row - player.vRow) + Math.abs(player.col - player.vCol);
     if (dist < 0.02) {
       player.vRow = player.row; player.vCol = player.col;
       player.walking = false; player.walkT = 0; player.jumpT = 0;
     } else {
       player.walkT += dt;
-      player.jumpT += dt;
     }
 
     // tremor de tela decai
