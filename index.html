@@ -188,6 +188,70 @@
     pointer-events: none;
   }
 
+  /* ---------- MENU PRINCIPAL ---------- */
+  #mainMenuScreen h1 {
+    color: var(--gold);
+    text-shadow: 0 0 20px rgba(245,212,138,.5);
+    margin-bottom: 10px;
+  }
+  #mainMenuScreen .menu-subtitle {
+    max-width: 560px;
+    margin: 0 auto 28px;
+    color: var(--text-dim);
+    font-size: 16px;
+    line-height: 1.6;
+  }
+  .main-menu-actions {
+    width: min(340px, 100%);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-top: 10px;
+  }
+  .main-menu-actions .btn { width: 100%; margin-top: 0; }
+  #aboutGameScreen h1, #teamCreditsScreen h1 {
+    color: var(--gold);
+    text-shadow: 0 0 18px rgba(245,212,138,.45);
+  }
+  .about-panel, .team-panel {
+    width: min(620px, 100%);
+    max-height: 54vh;
+    overflow-y: auto;
+    padding: 18px 20px;
+    border: 1px solid rgba(176,38,255,.28);
+    border-radius: 8px;
+    background: rgba(10,4,32,.45);
+    text-align: left;
+    scrollbar-color: var(--gold-dim) rgba(0,0,0,.2);
+  }
+  .about-panel h3, .team-panel h3 {
+    color: var(--gold);
+    font-family: var(--font-display);
+    margin: 8px 0 6px;
+  }
+  .about-panel p, .team-panel p {
+    margin: 0 0 14px;
+    line-height: 1.65;
+    color: var(--text-main);
+    font-size: 16px;
+  }
+  .team-role {
+    margin: 16px 0 6px;
+    color: var(--neon-cyan);
+    font-family: var(--font-pixel);
+    font-size: 10px;
+    letter-spacing: 1px;
+  }
+  .team-name {
+    padding: 8px 10px;
+    margin: 5px 0;
+    border-left: 2px solid var(--gold-dim);
+    background: rgba(255,255,255,.025);
+    color: var(--text-main);
+    font-size: 15px;
+  }
+  .screen-back { margin-top: 18px !important; }
+
   .hidden { display: none !important; }
 
   /* ---------- OVERLAY SCREENS (title / gameover / victory) ---------- */
@@ -559,6 +623,58 @@
     <div id="scanlines"></div>
     <div id="vignette"></div>
 
+    <!-- MENU PRINCIPAL / TELA INICIAL VERDADEIRA -->
+    <div id="mainMenuScreen" class="screen">
+      <div class="eyebrow-ice float">Reino de Arithmia</div>
+      <h1>A Torre de<br>Al-Kwarizmi</h1>
+      <p class="menu-subtitle float d2">Uma aventura de conhecimento, magia e matemática.</p>
+      <div class="main-menu-actions">
+        <button class="btn" id="mainPlayBtn">Jogar</button>
+        <button class="btn secondary" id="aboutGameBtn">Sobre o Jogo</button>
+        <button class="btn secondary" id="teamCreditsBtn">Créditos</button>
+      </div>
+    </div>
+
+    <!-- SOBRE O JOGO -->
+    <div id="aboutGameScreen" class="screen hidden">
+      <div class="eyebrow-ice float">Sobre a experiência</div>
+      <h1>Sobre o Jogo</h1>
+      <div class="about-panel float d2">
+        <h3>Por que A Torre de Al-Kwarizmi foi criada?</h3>
+        <p>A Torre de Al-Kwarizmi nasceu da ideia de transformar o estudo em uma experiência na qual aprender faz parte da própria aventura. Em vez de separar jogo e conteúdo, o jogador precisa compreender os conceitos para avançar pela torre.</p>
+        <h3>Uma experiência educacional</h3>
+        <p>Este protótipo foi desenvolvido para trabalhar Função Exponencial por meio de exploração, desafios, perguntas contextualizadas e resolução de problemas. A proposta é que a aprendizagem seja o centro da experiência, enquanto a ambientação, a narrativa e a progressão tornam o estudo mais envolvente.</p>
+        <h3>O começo de um projeto maior</h3>
+        <p>A Torre é o primeiro protótipo de uma visão mais ampla: uma plataforma de aprendizagem baseada em campanhas, histórias e diferentes disciplinas. A intenção é criar experiências em que o conhecimento tenha um papel real dentro da jornada do jogador.</p>
+        <h3>Nosso princípio</h3>
+        <p><strong>A história pode fazer o aluno querer voltar. A educação deve ser o motivo pelo qual ele está avançando.</strong></p>
+      </div>
+      <button class="btn ice screen-back" id="backFromAboutBtn">Voltar</button>
+    </div>
+
+    <!-- CRÉDITOS DA EQUIPE -->
+    <div id="teamCreditsScreen" class="screen hidden">
+      <div class="eyebrow-ice float">Aqueles que construíram a Torre</div>
+      <h1>Créditos</h1>
+      <div class="team-panel float d2">
+        <div class="team-role">DESENVOLVIMENTO</div>
+        <div class="team-name">[Nome do desenvolvedor]</div>
+        <div class="team-name">[Nome do desenvolvedor]</div>
+
+        <div class="team-role">DESIGN E DIREÇÃO CRIATIVA</div>
+        <div class="team-name">[Nome do designer]</div>
+        <div class="team-name">[Nome do designer]</div>
+
+        <div class="team-role">TESTES E PLAYTEST</div>
+        <div class="team-name">[Nome do integrante]</div>
+        <div class="team-name">[Nome do integrante]</div>
+
+        <div class="team-role">AGRADECIMENTOS</div>
+        <p>Nosso agradecimento a todas as pessoas que contribuíram com ideias, testes, sugestões e feedbacks para tornar esta experiência melhor.</p>
+      </div>
+      <button class="btn ice screen-back" id="backFromTeamCreditsBtn">Voltar</button>
+    </div>
+
     <!-- TELA DE TÍTULO -->
     <div id="titleScreen" class="screen">
       <div class="eyebrow-ice float">Reino de Arithmia</div>
@@ -567,6 +683,7 @@
       <p class="lore float d3">Você é o aprendiz que deve subir os 6 andares da torre, decifrando os padrões de crescimento e decaimento mágico para derrotar cada guardião elemental e salvar Arithmia.</p>
       <div class="controls-note float">setas ou WASD movem o herói ↑ ↓ ← → / W A S D<br>esbarrar no chefe abre o combate matemático</div>
       <button class="btn" id="startBtn">Iniciar Jornada</button>
+      <button class="btn secondary screen-back" id="backToMainMenuBtn">Voltar ao Menu</button>
     </div>
 
     <!-- TELA DE GAME OVER -->
@@ -968,7 +1085,7 @@
   // ==========================================================
   // ESTADO DO JOGO
   // ==========================================================
-  let state = "title"; // title | playing | question | shield | gameover | victory
+  let state = "menu"; // menu | title | playing | question | shield | gameover | victory
   let floorIndex = 0; // 0..5
   let hp = 3;
   let maze = null;
@@ -983,7 +1100,7 @@
 
   // jogador: posição lógica (grade) + posição visual (interpolada, em tiles)
   // facingDir controla o sprite: 'down' | 'up' | 'left' | 'right'
-  const player = { row: 1, col: 1, vRow: 1, vCol: 1, facing: 1, facingDir: "down", walking: false, walkT: 0 };
+  const player = { row: 1, col: 1, vRow: 1, vCol: 1, facing: 1, facingDir: "down", walking: false, walkT: 0, jumpT: 0 };
 
   // ---------- efeitos visuais (juice) ----------
   let shakeMag = 0; // tremor de tela em pixels (buffer)
@@ -1025,10 +1142,19 @@
     bossTag: document.getElementById("bossTag"),
     hearts: document.getElementById("hearts"),
     modalHearts: document.getElementById("modalHearts"),
+    mainMenuScreen: document.getElementById("mainMenuScreen"),
+    aboutGameScreen: document.getElementById("aboutGameScreen"),
+    teamCreditsScreen: document.getElementById("teamCreditsScreen"),
     titleScreen: document.getElementById("titleScreen"),
     gameOverScreen: document.getElementById("gameOverScreen"),
     victoryScreen: document.getElementById("victoryScreen"),
     creditsScreen: document.getElementById("creditsScreen"),
+    mainPlayBtn: document.getElementById("mainPlayBtn"),
+    aboutGameBtn: document.getElementById("aboutGameBtn"),
+    teamCreditsBtn: document.getElementById("teamCreditsBtn"),
+    backFromAboutBtn: document.getElementById("backFromAboutBtn"),
+    backFromTeamCreditsBtn: document.getElementById("backFromTeamCreditsBtn"),
+    backToMainMenuBtn: document.getElementById("backToMainMenuBtn"),
     startBtn: document.getElementById("startBtn"),
     retryBtn: document.getElementById("retryBtn"),
     playAgainBtn: document.getElementById("playAgainBtn"),
@@ -1052,6 +1178,9 @@
     hp = 3;
     floorIndex = 0;
     state = "playing";
+    el.mainMenuScreen.classList.add("hidden");
+    el.aboutGameScreen.classList.add("hidden");
+    el.teamCreditsScreen.classList.add("hidden");
     el.titleScreen.classList.add("hidden");
     el.gameOverScreen.classList.add("hidden");
     el.victoryScreen.classList.add("hidden");
@@ -1391,7 +1520,7 @@
 
     sfxAudioCtx = new AudioCtx();
     stepGain = sfxAudioCtx.createGain();
-    stepGain.gain.value = 0.24;
+    stepGain.gain.value = 0.34;
     stepGain.connect(sfxAudioCtx.destination);
 
     sfxMaster = sfxAudioCtx.createGain();
@@ -1406,33 +1535,60 @@
     if (!sfxAudioCtx || !stepGain) return;
 
     const now = sfxAudioCtx.currentTime;
-    const osc = sfxAudioCtx.createOscillator();
-    const gain = sfxAudioCtx.createGain();
-    const filter = sfxAudioCtx.createBiquadFilter();
-
-    // Alterna levemente os dois pés para o som não ficar mecânico.
     const isLeft = stepToggle;
     stepToggle = !stepToggle;
 
-    osc.type = "triangle";
-    osc.frequency.setValueAtTime(isLeft ? 105 : 92, now);
-    osc.frequency.exponentialRampToValueAtTime(isLeft ? 58 : 52, now + 0.075);
+    // Passo de pedra: um impacto grave + uma pequena "batida" seca,
+    // para lembrar uma bota medieval tocando piso de pedra.
+    const thump = sfxAudioCtx.createOscillator();
+    const thumpGain = sfxAudioCtx.createGain();
+    const thumpFilter = sfxAudioCtx.createBiquadFilter();
 
-    filter.type = "lowpass";
-    filter.frequency.setValueAtTime(900, now);
-    filter.frequency.exponentialRampToValueAtTime(260, now + 0.08);
-    filter.Q.value = 1.2;
+    thump.type = "triangle";
+    thump.frequency.setValueAtTime(isLeft ? 92 : 84, now);
+    thump.frequency.exponentialRampToValueAtTime(isLeft ? 38 : 34, now + 0.15);
 
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(0.16, now + 0.008);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.085);
+    thumpFilter.type = "lowpass";
+    thumpFilter.frequency.setValueAtTime(720, now);
+    thumpFilter.frequency.exponentialRampToValueAtTime(190, now + 0.15);
+    thumpFilter.Q.value = 1.35;
 
-    osc.connect(filter);
-    filter.connect(gain);
-    gain.connect(stepGain);
+    thumpGain.gain.setValueAtTime(0.0001, now);
+    thumpGain.gain.exponentialRampToValueAtTime(0.25, now + 0.008);
+    thumpGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.16);
 
-    osc.start(now);
-    osc.stop(now + 0.09);
+    thump.connect(thumpFilter);
+    thumpFilter.connect(thumpGain);
+    thumpGain.connect(stepGain);
+
+    // Ruído curtíssimo e filtrado = contato seco da sola com a pedra.
+    const buffer = sfxAudioCtx.createBuffer(1, Math.floor(sfxAudioCtx.sampleRate * 0.055), sfxAudioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < data.length; i++) {
+      const decay = 1 - i / data.length;
+      data[i] = (Math.random() * 2 - 1) * decay;
+    }
+
+    const noise = sfxAudioCtx.createBufferSource();
+    const noiseGain = sfxAudioCtx.createGain();
+    const noiseFilter = sfxAudioCtx.createBiquadFilter();
+
+    noise.buffer = buffer;
+    noiseFilter.type = "bandpass";
+    noiseFilter.frequency.value = isLeft ? 760 : 680;
+    noiseFilter.Q.value = 0.75;
+
+    noiseGain.gain.setValueAtTime(0.0001, now);
+    noiseGain.gain.exponentialRampToValueAtTime(0.11, now + 0.004);
+    noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.065);
+
+    noise.connect(noiseFilter);
+    noiseFilter.connect(noiseGain);
+    noiseGain.connect(stepGain);
+
+    thump.start(now);
+    thump.stop(now + 0.14);
+    noise.start(now);
   }
 
   function sfxTone(freq, duration, volume, type, startOffset, endFreq) {
@@ -1871,6 +2027,44 @@
   // ==========================================================
   // BOTÕES DE TELA
   // ==========================================================
+  el.mainPlayBtn.addEventListener("click", function () {
+    el.mainMenuScreen.classList.add("hidden");
+    el.titleScreen.classList.remove("hidden");
+    state = "title";
+    syncMusic();
+  });
+
+  el.aboutGameBtn.addEventListener("click", function () {
+    el.mainMenuScreen.classList.add("hidden");
+    el.aboutGameScreen.classList.remove("hidden");
+  });
+
+  el.teamCreditsBtn.addEventListener("click", function () {
+    el.mainMenuScreen.classList.add("hidden");
+    el.teamCreditsScreen.classList.remove("hidden");
+  });
+
+  el.backFromAboutBtn.addEventListener("click", function () {
+    el.aboutGameScreen.classList.add("hidden");
+    el.mainMenuScreen.classList.remove("hidden");
+    state = "menu";
+    syncMusic();
+  });
+
+  el.backFromTeamCreditsBtn.addEventListener("click", function () {
+    el.teamCreditsScreen.classList.add("hidden");
+    el.mainMenuScreen.classList.remove("hidden");
+    state = "menu";
+    syncMusic();
+  });
+
+  el.backToMainMenuBtn.addEventListener("click", function () {
+    el.titleScreen.classList.add("hidden");
+    el.mainMenuScreen.classList.remove("hidden");
+    state = "menu";
+    syncMusic();
+  });
+
   el.startBtn.addEventListener("click", initGame);
   el.retryBtn.addEventListener("click", initGame);
   el.playAgainBtn.addEventListener("click", initGame);
@@ -2146,8 +2340,10 @@
     }
 
     // jogador — sprite pixelado com 4 direções (baixo/cima/esquerda/direita)
-    const bob = player.walking ? Math.sin(player.walkT * 16) * 1.5 : 0;
-    const px = player.vCol * TILE, py = player.vRow * TILE + bob;
+    const jumpProgress = Math.min(player.jumpT / 0.36, 1);
+    const jumpArc = jumpProgress < 1 ? Math.sin(jumpProgress * Math.PI) : 0;
+    const bob = player.walking ? jumpArc * 9 : 0;
+    const px = player.vCol * TILE, py = player.vRow * TILE - bob;
     bctx.save();
     bctx.translate(Math.round(px + TILE / 2), Math.round(py + TILE / 2));
     if (player.facingDir === "left" || player.facingDir === "right") {
@@ -2227,9 +2423,10 @@
     const dist = Math.abs(player.row - player.vRow) + Math.abs(player.col - player.vCol);
     if (dist < 0.02) {
       player.vRow = player.row; player.vCol = player.col;
-      player.walking = false; player.walkT = 0;
+      player.walking = false; player.walkT = 0; player.jumpT = 0;
     } else {
       player.walkT += dt;
+      player.jumpT += dt;
     }
 
     // tremor de tela decai
